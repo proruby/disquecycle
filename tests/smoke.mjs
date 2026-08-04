@@ -233,6 +233,25 @@ async function main() {
       (await page.inputValue('#f-offsetX')) !== decalageAvant,
       `${decalageAvant} % → ${await page.inputValue('#f-offsetX')} %`);
 
+    // Les exports doivent être atteignables sans parcourir la colonne.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(200);
+    const hauteur = page.viewportSize().height;
+    const bouton = await page.locator('#btn-svg-cut').boundingBox();
+    const apercu = await page.locator('#preview').boundingBox();
+    check('l’export est visible sans défiler',
+      bouton.y >= 0 && bouton.y + bouton.height <= hauteur,
+      `à ${Math.round(bouton.y)} px du haut`);
+    check('l’export est au-dessus de l’aperçu', bouton.y < apercu.y);
+
+    await page.evaluate(() => window.scrollTo(0, 700));
+    await page.waitForTimeout(300);
+    const apresDefilement = await page.locator('#btn-svg-cut').boundingBox();
+    check('l’export reste visible en parcourant les réglages',
+      apresDefilement.y >= 0 && apresDefilement.y + apresDefilement.height <= hauteur,
+      `à ${Math.round(apresDefilement.y)} px du haut`);
+    await page.evaluate(() => window.scrollTo(0, 0));
+
     const download = page.waitForEvent('download', { timeout: 8000 });
     await page.click('#btn-svg-cut');
     const file = await download;

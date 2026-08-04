@@ -336,9 +336,12 @@ button { font: inherit; color: inherit; }
 .stage__toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px 14px;
   align-items: center;
 }
+/* Les téléchargements sont la sortie du travail : ils restent au-dessus de
+   l'aperçu, atteignables sans parcourir la colonne. */
+.stage__toolbar .actions { margin-left: auto; }
 
 .segmented {
   display: inline-flex;
@@ -623,6 +626,7 @@ button { font: inherit; color: inherit; }
   .topbar, .layout, .help, .footer { padding-left: 16px; padding-right: 16px; }
   .presets { grid-template-columns: repeat(4, 1fr); }
   .actions .btn { flex: 1 1 45%; }
+  .stage__toolbar .actions { margin-left: 0; width: 100%; }
   .framing__fields { grid-template-columns: 1fr; }
 }
 
