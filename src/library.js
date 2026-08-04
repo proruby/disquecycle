@@ -1,24 +1,31 @@
 /**
- * Bibliothèque de versions : les modèles enregistrés par l'utilisateur.
+ * Stockage local : la bibliothèque de versions et le visuel de travail.
  *
- * Le stockage s'appuie directement sur IndexedDB, sans bibliothèque. C'est déjà
- * le magasin qu'enveloppent les paquets habituels, et c'est le seul qui accepte
- * les images telles quelles : une version conserve le visuel importé sous forme
- * de `Blob`, ce que `localStorage` — limité à quelques mégaoctets de texte — ne
- * permettrait pas.
+ * Tout s'appuie directement sur IndexedDB, sans bibliothèque. C'est déjà le
+ * magasin qu'enveloppent les paquets habituels, et c'est le seul qui accepte
+ * les images telles quelles : une version — ou le visuel en cours — conserve
+ * l'import sous forme de `Blob`, ce que `localStorage` — limité à quelques
+ * mégaoctets de texte — ne permettrait pas.
  *
- * Chaque enregistrement contient de quoi reconstituer exactement l'écran quitté :
+ * Deux magasins :
  *
- *   { id, name, createdAt, updatedAt,
- *     state,                       tous les réglages
- *     source: null | { kind: 'preset', presetId }
- *                  | { kind: 'image' | 'svg', name, blob, bbox },
- *     thumb }                      vignette PNG pour la liste
+ *   `versions`  { id, name, createdAt, updatedAt,
+ *                 state,                       tous les réglages
+ *                 source: null | { kind: 'preset', presetId }
+ *                              | { kind: 'image' | 'svg', name, blob, bbox },
+ *                 thumb }                      vignette PNG pour la liste
+ *
+ *   `workspace` { id: 'current', source, updatedAt }
+ *               le visuel affiché à l'instant, pour le retrouver après un
+ *               rechargement — les réglages, eux, tiennent dans `localStorage`
+ *               et survivent déjà d'une visite à l'autre.
  */
 
 const DB_NAME = 'reflecto';
-const STORE = 'versions';
-const DB_VERSION = 1;
+const VERSIONS_STORE = 'versions';
+const WORKSPACE_STORE = 'workspace';
+const WORKSPACE_ID = 'current';
+const DB_VERSION = 2;
 
 let dbPromise = null;
 
@@ -32,8 +39,11 @@ function openDb() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'id' }).createIndex('updatedAt', 'updatedAt');
+      if (!db.objectStoreNames.contains(VERSIONS_STORE)) {
+        db.createObjectStore(VERSIONS_STORE, { keyPath: 'id' }).createIndex('updatedAt', 'updatedAt');
+      }
+      if (!db.objectStoreNames.contains(WORKSPACE_STORE)) {
+        db.createObjectStore(WORKSPACE_STORE, { keyPath: 'id' });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -47,11 +57,11 @@ function openDb() {
   return dbPromise;
 }
 
-/** Exécute une transaction et renvoie le résultat de la requête produite. */
-function run(mode, action) {
+/** Exécute une transaction sur le magasin donné et renvoie le résultat de la requête produite. */
+function run(storeName, mode, action) {
   return openDb().then((db) => new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE, mode);
-    const request = action(transaction.objectStore(STORE));
+    const transaction = db.transaction(storeName, mode);
+    const request = action(transaction.objectStore(storeName));
     let result;
     if (request) request.onsuccess = () => { result = request.result; };
     transaction.oncomplete = () => resolve(result);
@@ -70,23 +80,25 @@ export async function isAvailable() {
   }
 }
 
+/* ------------------------------------------------------------------ versions */
+
 /** Versions les plus récentes d'abord. */
 export async function listVersions() {
-  const all = await run('readonly', (store) => store.getAll());
+  const all = await run(VERSIONS_STORE, 'readonly', (store) => store.getAll());
   return (all || []).sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function getVersion(id) {
-  return run('readonly', (store) => store.get(id));
+  return run(VERSIONS_STORE, 'readonly', (store) => store.get(id));
 }
 
 export async function putVersion(record) {
-  await run('readwrite', (store) => store.put(record));
+  await run(VERSIONS_STORE, 'readwrite', (store) => store.put(record));
   return record;
 }
 
 export async function deleteVersion(id) {
-  await run('readwrite', (store) => store.delete(id));
+  await run(VERSIONS_STORE, 'readwrite', (store) => store.delete(id));
 }
 
 export async function renameVersion(id, name) {
@@ -111,4 +123,18 @@ export function signature(state, source) {
     state,
     source ? (source.presetId || source.name || source.kind) : null,
   ]);
+}
+
+/* ----------------------------------------------------------------- espace de travail */
+
+/** Visuel affiché lors de la dernière visite, ou `undefined` si rien n'a jamais été enregistré. */
+export async function getWorkspaceSource() {
+  return run(WORKSPACE_STORE, 'readonly', (store) => store.get(WORKSPACE_ID));
+}
+
+/** `source` suit le même format que dans une version : `null` si aucun visuel n'est affiché. */
+export async function setWorkspaceSource(source) {
+  await run(WORKSPACE_STORE, 'readwrite', (store) => store.put({
+    id: WORKSPACE_ID, source, updatedAt: Date.now(),
+  }));
 }

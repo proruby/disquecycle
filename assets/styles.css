@@ -66,7 +66,13 @@ button { font: inherit; color: inherit; }
 /* ------------------------------------------------------------------- grille */
 
 /* Trois colonnes : ce que l'on compose à gauche, ce que l'on regarde au
-   centre, ce qui part à la machine et ce que l'on conserve à droite. */
+   centre, ce qui part à la machine et ce que l'on conserve à droite. La scène
+   et la colonne de droite restent épinglées tant que la colonne de gauche,
+   souvent bien plus haute une fois ses sections dépliées, défile dessous —
+   c'est pour ça que `.content` ne forme pas sa propre boîte ici : `display:
+   contents` la rend transparente, ses deux enfants deviennent directement les
+   colonnes 2 et 3 de cette grille, avec la hauteur de la colonne de gauche
+   comme espace de manœuvre pour l'épinglage. */
 .layout {
   display: grid;
   grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--rail);
@@ -77,9 +83,9 @@ button { font: inherit; color: inherit; }
   margin: 0 auto;
 }
 
-.sidebar,
-.rail { display: flex; flex-direction: column; gap: 12px; }
-.rail { position: sticky; top: 24px; }
+.sidebar { display: flex; flex-direction: column; gap: 12px; }
+.content { display: contents; }
+.rail { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 24px; }
 
 /* ------------------------------------------------------------------ groupes */
 
@@ -143,6 +149,21 @@ button { font: inherit; color: inherit; }
   border-top: 1px solid var(--line-soft);
 }
 .field[hidden] { display: none; }
+
+.fields--pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.fields--pair[hidden] { display: none; }
+
+/* Sépare un second groupe de champs (le texte secondaire) sans en faire une
+   section repliable à part entière : juste un repère de lecture. */
+.field--divider { margin-top: 2px; }
+.fields__divider {
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--text-faint);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
 
 .field__head {
   display: flex;
@@ -341,7 +362,18 @@ button { font: inherit; color: inherit; }
 }
 /* Les téléchargements sont la sortie du travail : ils restent au-dessus de
    l'aperçu, atteignables sans parcourir la colonne. */
-.stage__toolbar .actions { margin-left: auto; }
+.stage__toolbar .actions { margin-left: auto; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.actions .checkline { white-space: nowrap; }
+
+.history { display: inline-flex; gap: 6px; }
+.btn--icon {
+  width: 32px; height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  line-height: 1;
+}
 
 .segmented {
   display: inline-flex;
@@ -574,6 +606,25 @@ button { font: inherit; color: inherit; }
 .badge--current { background: rgba(216, 255, 62, 0.16); color: var(--accent); }
 .badge--dirty { background: rgba(255, 203, 92, 0.16); color: var(--warn); }
 
+.panel--sheet { display: flex; flex-direction: column; }
+.panel--sheet .panel__head { margin-bottom: 0; }
+.panel--sheet .fields--tight { margin-top: 0; padding-top: 0; border-top: 0; }
+.panel--sheet > * + * { margin-top: 12px; }
+.sheet__result {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.sheet__result--warn {
+  background: rgba(255, 203, 92, 0.1);
+  border-color: rgba(255, 203, 92, 0.28);
+  color: var(--warn);
+}
+
 /* ---------------------------------------------------------------- aide */
 
 .help {
@@ -611,8 +662,18 @@ button { font: inherit; color: inherit; }
    et s'étale en deux blocs plutôt que de comprimer l'aperçu. */
 @media (max-width: 1400px) {
   .layout { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+  /* En dessous de trois colonnes confortables, la scène et la colonne de
+     droite s'empilent au lieu d'être côte à côte : `.content` redevient une
+     vraie boîte, indépendante de la hauteur de la colonne de gauche — sans
+     quoi cette dernière, une fois ses sections dépliées, imposerait sa
+     hauteur à cette ligne de grille. Une scène toujours collante, empilée
+     au-dessus d'une colonne de droite plus courte, resterait épinglée
+     par-dessus elle en défilant : les éléments repositionnés passent
+     toujours au-dessus des éléments statiques, quel que soit l'ordre dans le
+     document. Rien ne justifie plus qu'elle reste collante ici. */
+  .content { display: flex; flex-direction: column; gap: 20px; }
+  .stage { position: static; }
   .rail {
-    grid-column: 2;
     position: static;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -622,8 +683,7 @@ button { font: inherit; color: inherit; }
 
 @media (max-width: 1080px) {
   .layout { grid-template-columns: 1fr; }
-  .stage { position: static; order: -1; }
-  .rail { grid-column: 1; order: -1; }
+  .content { order: -1; }
   #preview { max-height: 62vh; }
 }
 

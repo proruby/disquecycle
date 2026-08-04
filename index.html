@@ -60,8 +60,13 @@
     <button type="button" id="btn-reset" class="btn btn--ghost btn--block">Réinitialiser les réglages</button>
   </aside>
 
+  <div class="content">
   <section class="stage">
     <div class="stage__toolbar">
+      <div class="history" role="group" aria-label="Annuler / rétablir">
+        <button type="button" id="btn-undo" class="btn btn--icon" title="Annuler (Ctrl+Z)" aria-label="Annuler" disabled>↶</button>
+        <button type="button" id="btn-redo" class="btn btn--icon" title="Rétablir (Ctrl+Maj+Z)" aria-label="Rétablir" disabled>↷</button>
+      </div>
       <div class="segmented" role="group" aria-label="Mode d’aperçu">
         <button type="button" data-mode="night" class="segmented__item">Vue de nuit</button>
         <button type="button" data-mode="day" class="segmented__item">Vue atelier</button>
@@ -76,6 +81,10 @@
       </label>
 
       <div class="actions" role="group" aria-label="Télécharger">
+        <label class="checkline" title="Inverse horizontalement les fichiers SVG téléchargés, sans changer l’aperçu ci-dessus : nécessaire pour le flex thermocollant, qui se découpe et se pose à l’envers.">
+          <input type="checkbox" id="mirror-export">
+          <span>Miroir thermocollant</span>
+        </label>
         <button type="button" id="btn-svg-cut" class="btn btn--primary">SVG de découpe</button>
         <button type="button" id="btn-svg-preview" class="btn btn--small">SVG d’aperçu</button>
         <button type="button" id="btn-png" class="btn btn--small">PNG</button>
@@ -122,7 +131,58 @@
       </header>
       <div class="versions" id="versions"></div>
     </section>
+
+    <section class="panel panel--sheet">
+      <header class="panel__head">
+        <h2>Planche de découpe</h2>
+        <p>Plusieurs disques rangés sur une même feuille, pour ne découper qu’une fois au lieu d’assembler des fichiers à la main.</p>
+      </header>
+      <div class="fields fields--tight">
+        <div class="field">
+          <div class="field__head"><label class="field__label" for="sheet-source">Contenu</label></div>
+          <select id="sheet-source" class="field__select">
+            <option value="copies">Plusieurs copies du disque actuel</option>
+            <option value="versions">Une copie de chaque version enregistrée</option>
+          </select>
+        </div>
+        <div class="field" id="sheet-copies-field">
+          <div class="field__head"><label class="field__label" for="sheet-copies">Nombre de copies</label></div>
+          <input type="number" id="sheet-copies" class="field__text" min="1" max="60" step="1" value="6">
+        </div>
+        <div class="field">
+          <div class="field__head"><label class="field__label" for="sheet-size">Format de planche</label></div>
+          <select id="sheet-size" class="field__select">
+            <option value="210x297">A4 portrait — 210 × 297 mm</option>
+            <option value="297x210">A4 paysage — 297 × 210 mm</option>
+            <option value="297x420">A3 portrait — 297 × 420 mm</option>
+            <option value="420x297">A3 paysage — 420 × 297 mm</option>
+            <option value="custom">Format personnalisé…</option>
+          </select>
+        </div>
+        <div class="fields--pair" id="sheet-custom-fields" hidden>
+          <div class="field">
+            <div class="field__head"><label class="field__label" for="sheet-width">Largeur</label></div>
+            <input type="number" id="sheet-width" class="field__text" min="50" max="2000" step="1" value="210">
+          </div>
+          <div class="field">
+            <div class="field__head"><label class="field__label" for="sheet-height">Hauteur</label></div>
+            <input type="number" id="sheet-height" class="field__text" min="50" max="2000" step="1" value="297">
+          </div>
+        </div>
+        <div class="field">
+          <div class="field__head">
+            <label class="field__label" for="sheet-gap">Espacement</label>
+            <output class="field__value" id="sheet-gap-value">4 mm</output>
+          </div>
+          <input type="range" id="sheet-gap" class="field__range" min="1" max="20" step="0.5" value="4">
+        </div>
+      </div>
+      <button type="button" id="btn-sheet-build" class="btn btn--block">Générer la planche</button>
+      <p class="sheet__result" id="sheet-result" hidden></p>
+      <button type="button" id="btn-sheet-download" class="btn btn--primary btn--block" hidden>Télécharger la planche (SVG)</button>
+    </section>
   </aside>
+  </div>
 
 </main>
 
@@ -135,11 +195,11 @@
     </article>
     <article>
       <h3>2. La matière</h3>
-      <p>Prenez un film adhésif rétro-réfléchissant à découper (classe&nbsp;1 ou&nbsp;2, souvent vendu en rouleaux de 30&nbsp;cm). Pour un textile, choisissez plutôt un film thermocollant réfléchissant, appliqué à la presse ou au fer selon la notice du fabricant.</p>
+      <p>Prenez un film adhésif rétro-réfléchissant à découper (classe&nbsp;1 ou&nbsp;2, souvent vendu en rouleaux de 30&nbsp;cm) pour coller directement sur un gilet ou un sac. Pour un textile qu’on ne veut pas percer, choisissez plutôt un flex thermocollant réfléchissant, posé à la presse ou au fer selon la notice du fabricant.</p>
     </article>
     <article>
       <h3>3. La découpe</h3>
-      <p>Découpez film vers le haut, sans miroir. Le réglage <em>Grossir&nbsp;/ affiner</em> compense le trait de lame&nbsp;; <em>Détail minimal</em> vous alerte quand un trait devient trop fin pour être décollé sans se déchirer. Faites toujours un test sur une chute.</p>
+      <p>Pour un adhésif, découpez film vers le haut, sans miroir. Pour un flex thermocollant, c’est l’inverse&nbsp;: la découpe se fait à l’envers, support brillant dessous — cochez <em>Miroir thermocollant</em> avant d’exporter, sinon le motif ressort inversé une fois posé. Le réglage <em>Grossir&nbsp;/ affiner</em> compense le trait de lame&nbsp;; <em>Détail minimal</em> vous alerte quand un trait devient trop fin pour être décollé sans se déchirer. Testez toujours sur une chute.</p>
     </article>
     <article>
       <h3>4. La pose</h3>

@@ -62,7 +62,8 @@ du disque, ce qui rend chaque réglage exprimé en millimètres indépendant de 
 résolution de travail.
 
 1. **Composition** — le visuel est dessiné dans la grille avec son cadrage
-   (échelle, décalage, rotation, miroir), le texte est rendu à part.
+   (échelle, décalage, rotation, miroir), le texte — jusqu'à deux, chacun avec
+   sa propre disposition — est rendu à part.
 2. **Binarisation** — luminosité, contraste, adoucissement, puis seuillage :
    la découpeuse ne connaît que deux états, matière ou vide.
 3. **Morphologie** — le réglage *grossir / affiner* déplace le contour d'une
@@ -85,11 +86,17 @@ résolution de travail.
 | **SVG de découpe** | Contour, anneau et motif en traits fins sans remplissage, dans un calque `Découpe`. C'est le fichier à envoyer à la machine. |
 | **SVG d'aperçu** | Le même dessin rempli en noir, pour valider ou imprimer. |
 | **Image PNG** | La vue courante, y compris la simulation de nuit. |
+| **Planche de découpe** | Plusieurs disques rangés sur une même feuille — plusieurs copies du disque affiché, ou une copie de chaque version enregistrée. |
 
 Les SVG portent des dimensions en millimètres (`width="80mm"`) et une `viewBox`
 de même étendue : **une unité utilisateur vaut un millimètre**. Inkscape,
 Illustrator, Silhouette Studio, Cricut Design Space et les logiciels de laser
 ouvrent donc le fichier à l'échelle, sans redimensionnement manuel.
+
+Une case **Miroir thermocollant**, à côté des boutons de téléchargement,
+inverse horizontalement les fichiers SVG exportés sans toucher à l'aperçu à
+l'écran : le flex thermocollant se découpe et se pose à l'envers, à l'inverse
+d'un adhésif posé tel quel — voir *Pour la découpe* plus bas.
 
 ### Organisation de l'écran
 
@@ -112,13 +119,36 @@ importé. La colonne de droite les liste du plus récent au plus ancien et perme
 d'ouvrir, mettre à jour, renommer ou supprimer. La version affichée est signalée,
 et marquée « modifiée » dès qu'elle diverge de ce qui est enregistré.
 
+Indépendamment de ces versions nommées, le **visuel affiché à l'instant** — importé
+ou choisi dans les motifs, y compris son retrait explicite — est lui aussi
+retrouvé après un rechargement de la page. Seuls les réglages survivaient
+jusqu'ici, appliqués au premier motif venu ; ce n'est plus le cas.
+
 Le stockage s'appuie **directement sur IndexedDB**, sans bibliothèque. C'est déjà
 le magasin qu'enveloppent les paquets habituels du genre, et c'est le seul qui
-accepte les images telles quelles : une version conserve le visuel importé sous
-forme de `Blob`, ce que `localStorage` — limité à quelques mégaoctets de texte —
-ne permettrait pas. Les données restent sur le poste et survivent au
-rechargement. Si le stockage est refusé, en navigation privée par exemple, le
-bloc l'annonce et l'édition continue normalement.
+accepte les images telles quelles : une version — ou le visuel affiché — conserve
+l'import sous forme de `Blob`, ce que `localStorage` — limité à quelques
+mégaoctets de texte — ne permettrait pas. Les données restent sur le poste et
+survivent au rechargement. Si le stockage est refusé, en navigation privée par
+exemple, le bloc l'annonce et l'édition continue normalement.
+
+### Planche de découpe
+
+Plusieurs disques rangés sur une même feuille plutôt qu'un fichier par disque à
+assembler à la main : plusieurs copies du disque affiché, ou une copie de
+chaque version enregistrée, sur un format standard (A4, A3) ou personnalisé.
+Un rangement simple en étagères place les plus grands disques d'abord ; ce qui
+ne tient pas sur la feuille choisie est compté et signalé plutôt que silencieusement
+perdu.
+
+### Annuler / rétablir
+
+Les réglages — curseurs, cases, texte, forme — s'annulent et se rétablissent,
+au clavier (Ctrl+Z / Ctrl+Maj+Z) ou aux deux flèches au-dessus de l'aperçu. Un
+glissement de curseur ou une frappe ne comptent que pour un seul geste annulable,
+pas un par pixel parcouru ou par lettre tapée. Changer de visuel — importer,
+choisir un motif, ouvrir une version — vide l'historique : annuler porte sur les
+réglages d'un dessin, jamais sur le choix d'un autre.
 
 ### Deux lectures du même dessin
 
@@ -151,8 +181,9 @@ src/
   trace.js          vectorisation par suivi de contours
   geometry.js       simplification, lissage, génération des chemins
   shapes.js         géométrie du support (disque, carré, hexagone, octogone)
+  nesting.js        rangement des disques sur une planche
   render.js         rendu de l'aperçu
-  exportSvg.js      génération des fichiers SVG
+  exportSvg.js      génération des fichiers SVG, dont les planches
 serve.js            serveur statique sans dépendance
 tools/bundle.mjs    assemblage en un fichier HTML autonome
 tools/import-tabler.mjs  ré-import des motifs empruntés
@@ -174,10 +205,15 @@ npm test
 ```
 
 Le premier test lance le serveur, ouvre l'application dans Chromium via
-Playwright et vérifie la chaîne complète : vectorisation des motifs et du texte,
-validité syntaxique des chemins produits, échelle réelle du SVG, mode négatif,
-chaque forme de support, suppression des miettes, import d'un SVG hostile et
-d'une image matricielle, puis le téléchargement depuis l'interface.
+Playwright et vérifie la chaîne complète : vectorisation des motifs et des deux
+textes, validité syntaxique des chemins produits, échelle réelle du SVG, mode
+négatif, chaque forme de support, suppression des miettes, import d'un SVG
+hostile et d'une image matricielle, bibliothèque de versions et persistance du
+visuel affiché, miroir thermocollant, planche de découpe (y compris le
+dépassement de format), annuler/rétablir — jusqu'au raccourci clavier qui ne
+doit pas voler l'annulation native d'un champ de texte — et la disposition à
+une largeur intermédiaire, où la scène et la colonne de droite s'empilent au
+lieu d'être côte à côte.
 
 Le second assemble le fichier autonome, l'ouvre en `file://` et vérifie qu'il
 démarre, dessine, n'émet aucune requête réseau et exporte toujours.
@@ -188,8 +224,11 @@ localement ; l'application elle-même n'a aucune dépendance.
 ## Pour la découpe
 
 * Film adhésif rétro-réfléchissant à découper pour un sac ou un casque,
-  film thermocollant réfléchissant pour un textile.
-* Découper film vers le haut, sans miroir, après un test sur une chute.
+  film thermocollant (flex) réfléchissant pour un textile qu'on ne veut pas percer.
+* Pour un adhésif, découper film vers le haut, sans miroir. Pour un flex
+  thermocollant, c'est l'inverse : la découpe se fait à l'envers, support
+  brillant dessous — cocher **Miroir thermocollant** avant d'exporter, sinon le
+  motif ressort inversé une fois posé. Tester toujours sur une chute.
 * *Grossir / affiner* compense le trait de lame ; *Détail minimal* signale les
   traits trop fins avant de lancer la machine.
 * Sur un sac, 70 à 90 mm de diamètre est un bon compromis ; sur une poche de

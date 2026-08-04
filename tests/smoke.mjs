@@ -11,6 +11,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -360,9 +361,201 @@ async function main() {
     await page.waitForTimeout(700);
     check('les versions survivent au rechargement', (await page.locator('.version').count()) === 1);
 
+    // --- persistance du visuel importé (et pas seulement des réglages)
+    const badge = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <rect x="15" y="15" width="70" height="70" fill="#111"/>
+    </svg>`;
+    await page.setInputFiles('#file', {
+      name: 'badge.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(badge),
+    });
+    await page.waitForTimeout(900);
+    check('un fichier importé devient la source',
+      (await page.textContent('#source-name')) === 'badge.svg');
+
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForSelector('#stats .chip', { timeout: 10000 });
+    await page.waitForTimeout(900);
+    check('le visuel importé — pas seulement les réglages — survit au rechargement',
+      (await page.textContent('#source-name')) === 'badge.svg');
+    check('le disque retrouvé reste découpable',
+      (await page.locator('#stats .chip').count()) >= 3 && errors.length === 0, errors[0] || '');
+
+    await page.click('#clear-source');
+    await page.waitForTimeout(700);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForSelector('#stats .chip', { timeout: 10000 });
+    await page.waitForTimeout(700);
+    check('retirer le visuel est un choix qui survit aussi au rechargement — pas de retour au motif par défaut',
+      (await page.textContent('#source-name')) === 'Aucun visuel');
+
+    // On repart d'un motif connu pour la suite des vérifications.
+    await page.click('.preset[data-preset="bike"]');
+    await page.waitForTimeout(700);
+
+    // --- miroir thermocollant : n'affecte que les fichiers exportés
+    const dl1 = page.waitForEvent('download', { timeout: 8000 });
+    await page.click('#btn-svg-cut');
+    const f1 = await dl1;
+    const p1 = await f1.path();
+    const contentNormal = readFileSync(p1, 'utf8');
+    check('sans le miroir, le SVG de découpe n’a pas de transformation',
+      !contentNormal.includes('scale(-1'));
+
+    await page.check('#mirror-export');
+    const dl2 = page.waitForEvent('download', { timeout: 8000 });
+    await page.click('#btn-svg-cut');
+    const f2 = await dl2;
+    const p2 = await f2.path();
+    const contentMiroir = readFileSync(p2, 'utf8');
+    check('le miroir thermocollant inverse le SVG de découpe',
+      contentMiroir.includes('scale(-1 1)'));
+    check('le miroir thermocollant ne touche pas à l’aperçu à l’écran',
+      (await page.evaluate(() => document.getElementById('preview').getContext('2d').getImageData(0, 0, 1, 1))) !== null);
+    await page.uncheck('#mirror-export');
+
+    // --- planche de découpe
+    check('les champs de format personnalisé sont masqués par défaut',
+      await page.isHidden('#sheet-custom-fields'));
+    await page.selectOption('#sheet-size', 'custom');
+    check('choisir « personnalisé » révèle largeur et hauteur',
+      await page.isVisible('#sheet-custom-fields'));
+    await page.selectOption('#sheet-size', '210x297');
+    check('revenir à un format standard remasque ces champs',
+      await page.isHidden('#sheet-custom-fields'));
+
+    await page.fill('#sheet-copies', '4');
+    await page.click('#btn-sheet-build');
+    await page.waitForTimeout(500);
+    check('la planche « copies » annonce le bon compte',
+      (await page.textContent('#sheet-result'))?.includes('4 disque'),
+      await page.textContent('#sheet-result'));
+
+    const dlSheet = page.waitForEvent('download', { timeout: 8000 });
+    await page.click('#btn-sheet-download');
+    const sheetFile = await dlSheet;
+    const sheetSvg = readFileSync(await sheetFile.path(), 'utf8');
+    check('la planche exportée contient les 4 exemplaires',
+      (sheetSvg.match(/<g id="disque-/g) || []).length === 4);
+    check('la planche exportée porte le format A4 déclaré',
+      sheetSvg.includes('width="210mm"') && sheetSvg.includes('height="297mm"'));
+
+    await page.selectOption('#sheet-source', 'versions');
+    await page.click('#btn-sheet-build');
+    await page.waitForTimeout(1200);
+    check('la planche « versions » utilise la bibliothèque',
+      (await page.textContent('#sheet-result'))?.includes('1 disque'),
+      await page.textContent('#sheet-result'));
+
+    await page.selectOption('#sheet-source', 'copies');
+    await page.fill('#sheet-copies', '10');
+    await page.selectOption('#sheet-size', 'custom');
+    await page.fill('#sheet-width', '60');
+    await page.fill('#sheet-height', '60');
+    await page.click('#btn-sheet-build');
+    await page.waitForTimeout(500);
+    check('un format trop petit est signalé plutôt que planté',
+      (await page.locator('#sheet-result.sheet__result--warn').count()) === 1);
+
+    // On revient à un format raisonnable pour la suite.
+    await page.selectOption('#sheet-size', '210x297');
+    await page.fill('#sheet-copies', '6');
+
+    // --- second texte (mise en page « badge »), vérifié directement dans la
+    // chaîne de traitement pour ne pas dépendre du minutage de l'interface
+    const deuxTextes = await page.evaluate(async () => {
+      const [{ buildModel }, { DEFAULTS }] = await Promise.all([
+        import('/src/pipeline.js'), import('/src/state.js'),
+      ]);
+      const un = buildModel({ ...DEFAULTS, text: 'CLUB', text2: '' }, null);
+      const deux = buildModel({ ...DEFAULTS, text: 'CLUB', text2: '06 12 34 56 78' }, null);
+      return { un: un.stats.designPaths, deux: deux.stats.designPaths };
+    });
+    check('le texte secondaire s’ajoute au texte principal sans le remplacer',
+      deuxTextes.deux > deuxTextes.un,
+      `${deuxTextes.un} tracé(s) → ${deuxTextes.deux} tracé(s)`);
+    check('le champ du texte secondaire est bien dans l’interface',
+      (await page.locator('#f-text2').count()) === 1);
+    check('sa disposition par défaut complète le texte principal (arc en haut)',
+      (await page.locator('#f-textPlace2').inputValue()) === 'arcTop');
+
+    // --- annuler / rétablir
+    await page.locator('#btn-undo').focus();
+    check('rien à annuler juste après le chargement', await page.isDisabled('#btn-undo'));
+
+    const diametreInitial = await page.inputValue('#f-diameter');
+    await page.locator('#f-diameter').focus();
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(400);
+    const diametreModifie = await page.inputValue('#f-diameter');
+    check('une flèche clavier sur un curseur modifie bien le réglage',
+      diametreModifie !== diametreInitial, `${diametreInitial} → ${diametreModifie}`);
+    check('annuler devient possible après une modification', !(await page.isDisabled('#btn-undo')));
+
+    await page.click('#btn-undo');
+    await page.waitForTimeout(400);
+    check('annuler restaure la valeur précédente',
+      (await page.inputValue('#f-diameter')) === diametreInitial);
+    check('rétablir devient possible après une annulation', !(await page.isDisabled('#btn-redo')));
+
+    await page.click('#btn-redo');
+    await page.waitForTimeout(400);
+    check('rétablir réapplique la modification',
+      (await page.inputValue('#f-diameter')) === diametreModifie);
+
+    // Le raccourci clavier, avec le focus sur une case à cocher plutôt qu'un
+    // champ de texte : l'annulation native du navigateur ne doit pas prendre
+    // le pas alors qu'elle ne fait rien sur une case à cocher.
+    // L'input du bouton à bascule est visuellement masqué au profit de son
+    // rendu ; c'est l'étiquette qui reçoit le clic, comme un vrai geste.
+    const invertAvant = await page.isChecked('#f-invert');
+    await page.locator('[data-key="invert"] .switch').click();
+    await page.waitForTimeout(300);
+    check('une case à cocher modifiée alimente aussi l’historique',
+      (await page.isChecked('#f-invert')) !== invertAvant);
+    await page.keyboard.press('Control+z');
+    await page.waitForTimeout(300);
+    check('Ctrl+Z annule même quand le focus est sur une case à cocher',
+      (await page.isChecked('#f-invert')) === invertAvant);
+
+    await page.fill('#f-text', 'AVANT');
+    await page.waitForTimeout(700);
+    check('taper dans le champ de texte ne casse pas Ctrl+Z natif du navigateur',
+      errors.length === 0, errors[0] || '');
+
+    await page.click('.preset[data-preset="star"]');
+    await page.waitForTimeout(700);
+    check('changer de visuel vide l’historique — annuler ne doit pas ramener un autre dessin',
+      await page.isDisabled('#btn-undo'));
+
     await page.click('[data-mode="night"]');
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(ROOT, 'tests', 'apercu.png'), fullPage: false });
+
+    // --- disposition à une largeur intermédiaire, où la scène et la colonne
+    // de droite s'empilent au lieu d'être côte à côte. Toute la suite ci-dessus
+    // tourne à 1440 px et n'aurait jamais vu une scène collante recouvrir le
+    // haut de la colonne de droite, ou un panneau latéral dépliable étirer la
+    // ligne de la scène d'un grand vide inutile.
+    const mid = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+    try {
+      await mid.goto(BASE, { waitUntil: 'networkidle' });
+      await mid.waitForSelector('#stats .chip', { timeout: 10000 });
+      await mid.waitForTimeout(500);
+      const rects = await mid.evaluate(() => {
+        const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+        return { stage: r('.stage'), rail: r('.rail') };
+      });
+      check('à largeur intermédiaire, la colonne de droite suit sans grand vide',
+        rects.rail.top - rects.stage.bottom < 60,
+        `${Math.round(rects.rail.top - rects.stage.bottom)} px d’écart`);
+      await mid.locator('#btn-sheet-build').scrollIntoViewIfNeeded();
+      await mid.locator('#btn-sheet-build').click({ timeout: 5000 });
+      check('le bouton de la planche reste cliquable à cette largeur, sans scène par-dessus', true);
+    } catch (err) {
+      check('le bouton de la planche reste cliquable à cette largeur, sans scène par-dessus', false, err.message);
+    } finally {
+      await mid.close();
+    }
   } finally {
     await browser.close();
     server.kill();

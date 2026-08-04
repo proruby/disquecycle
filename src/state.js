@@ -1,11 +1,12 @@
 /**
- * État de l'application : valeurs par défaut, persistance locale et
- * notification des changements. Volontairement plat — chaque clé correspond
- * à un réglage de l'interface et est lue telle quelle par la chaîne de
- * traitement.
+ * État de l'application : valeurs par défaut, persistance locale, historique
+ * d'édition et notification des changements. Volontairement plat — chaque clé
+ * correspond à un réglage de l'interface et est lue telle quelle par la chaîne
+ * de traitement.
  */
 
 const STORAGE_KEY = 'reflecto.v1';
+const MAX_HISTORY = 60;
 
 export const DEFAULTS = {
   // Cadrage du visuel
@@ -40,7 +41,7 @@ export const DEFAULTS = {
   negative: false,
   cutOutline: true,
 
-  // Texte
+  // Texte principal
   text: '',
   font: 'impact',
   textSize: 9,
@@ -48,6 +49,17 @@ export const DEFAULTS = {
   textSpacing: 4,
   textOffset: 0,
   textBold: false,
+
+  // Texte secondaire — désactivé tant que son contenu est vide, comme le
+  // principal. Le placement par défaut (arc en haut) en fait, dès qu'on le
+  // remplit, le pendant naturel du texte principal (arc en bas) : la mise en
+  // page classique d'un badge sans réglage supplémentaire.
+  text2: '',
+  textSize2: 9,
+  textPlace2: 'arcTop',
+  textSpacing2: 4,
+  textOffset2: 0,
+  textBold2: false,
 
   // Affichage
   previewMode: 'night',
@@ -61,6 +73,9 @@ export const FRAMING_KEYS = ['zoom', 'offsetX', 'offsetY', 'rotation', 'mirrorX'
 export function createStore(onChange) {
   const state = { ...DEFAULTS, ...load() };
   const notify = (keys) => onChange(state, keys);
+
+  const undoStack = [];
+  const redoStack = [];
 
   return {
     state,
@@ -80,9 +95,50 @@ export function createStore(onChange) {
       notify(keys);
     },
     reset() {
+      this.snapshot();
       Object.assign(state, DEFAULTS);
       save(state);
       notify(Object.keys(DEFAULTS));
+    },
+
+    /**
+     * Enregistre l'état courant sur la pile d'annulation, avant une
+     * modification sur le point d'être appliquée. L'appelant décide du
+     * découpage : un glissement de curseur ne prend qu'un instantané avant le
+     * premier mouvement, pas un par pixel parcouru.
+     */
+    snapshot() {
+      undoStack.push({ ...state });
+      if (undoStack.length > MAX_HISTORY) undoStack.shift();
+      redoStack.length = 0;
+    },
+    canUndo: () => undoStack.length > 0,
+    canRedo: () => redoStack.length > 0,
+    undo() {
+      if (!undoStack.length) return false;
+      redoStack.push({ ...state });
+      Object.assign(state, undoStack.pop());
+      save(state);
+      notify(Object.keys(DEFAULTS));
+      return true;
+    },
+    redo() {
+      if (!redoStack.length) return false;
+      undoStack.push({ ...state });
+      Object.assign(state, redoStack.pop());
+      save(state);
+      notify(Object.keys(DEFAULTS));
+      return true;
+    },
+    /**
+     * Vide l'historique. Appelé quand le visuel change : annuler après un
+     * changement de motif ou de version ne doit pas ramener les réglages
+     * d'un autre dessin sur l'image actuelle. « Annuler » porte sur les
+     * réglages, pas sur le choix du visuel.
+     */
+    clearHistory() {
+      undoStack.length = 0;
+      redoStack.length = 0;
     },
   };
 }

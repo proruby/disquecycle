@@ -19,6 +19,12 @@ function formatValue(field, value) {
 }
 
 function buildField(field, store) {
+  if (field.type === 'divider') {
+    const wrap = el('div', 'field field--divider');
+    wrap.append(el('p', 'fields__divider', field.label));
+    return wrap;
+  }
+
   const wrap = el('div', `field field--${field.type}`);
   wrap.dataset.key = field.key;
 
@@ -28,7 +34,12 @@ function buildField(field, store) {
     input.type = 'checkbox';
     input.id = `f-${field.key}`;
     input.checked = Boolean(store.get(field.key));
-    input.addEventListener('change', () => store.set(field.key, input.checked));
+    // Une seule bascule = une seule décision : l'instantané précède
+    // directement l'écriture, pas besoin de détecter une rafale.
+    input.addEventListener('change', () => {
+      store.snapshot();
+      store.set(field.key, input.checked);
+    });
     label.append(input, el('span', 'switch__track'), el('span', 'switch__label', field.label));
     wrap.append(label);
     wrap._sync = () => { input.checked = Boolean(store.get(field.key)); };
@@ -52,10 +63,28 @@ function buildField(field, store) {
     input.step = field.step;
     input.value = store.get(field.key);
     out.textContent = formatValue(field, input.value);
+
+    // Un glissement de curseur déclenche des dizaines d'événements : un seul
+    // instantané avant le premier mouvement, pas un par pixel parcouru. Les
+    // flèches du clavier déplacent la valeur avant que l'événement 'input' ne
+    // se déclenche, d'où l'instantané pris dès la pression de la touche.
+    let recording = false;
+    const startRecording = () => {
+      if (recording) return;
+      store.snapshot();
+      recording = true;
+    };
+    input.addEventListener('pointerdown', startRecording);
+    input.addEventListener('keydown', (e) => {
+      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) {
+        startRecording();
+      }
+    });
     input.addEventListener('input', () => {
       out.textContent = formatValue(field, input.value);
       store.set(field.key, Number(input.value));
     });
+    input.addEventListener('change', () => { recording = false; });
     wrap._sync = () => {
       input.value = store.get(field.key);
       out.textContent = formatValue(field, input.value);
@@ -66,6 +95,7 @@ function buildField(field, store) {
     if (field.steppers) {
       const row = el('div', 'stepper');
       const nudge = (delta) => {
+        store.snapshot();
         const next = Math.min(field.max, Math.max(field.min, store.get(field.key) + delta));
         store.set(field.key, Math.round(next * 100) / 100);
       };
@@ -91,6 +121,7 @@ function buildField(field, store) {
     }
     input.value = String(store.get(field.key));
     input.addEventListener('change', () => {
+      store.snapshot();
       const sample = field.options[0].value;
       store.set(field.key, typeof sample === 'number' ? Number(input.value) : input.value);
     });
@@ -101,7 +132,17 @@ function buildField(field, store) {
     if (field.placeholder) input.placeholder = field.placeholder;
     if (field.maxLength) input.maxLength = field.maxLength;
     input.value = store.get(field.key);
-    input.addEventListener('input', () => store.set(field.key, input.value));
+
+    // Une frappe après le focus ouvre un nouveau lot : tout ce qui est tapé
+    // avant le prochain passage par le champ s'annule d'un coup, comme dans
+    // un éditeur de texte ordinaire.
+    let recording = false;
+    input.addEventListener('focus', () => { recording = false; });
+    input.addEventListener('input', () => {
+      if (!recording) { store.snapshot(); recording = true; }
+      store.set(field.key, input.value);
+    });
+    input.addEventListener('blur', () => { recording = false; });
     wrap._sync = () => {
       if (document.activeElement !== input) input.value = store.get(field.key);
     };

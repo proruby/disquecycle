@@ -111,61 +111,88 @@ function sourceMask(state, source, n, sizeMm) {
 }
 
 /**
+ * Peint un texte dans le contexte donné, déjà préparé (fond blanc, encre
+ * noire). Renvoie `false` sans rien dessiner si le contenu est vide, ce qui
+ * permet à l'appelant de superposer deux textes indépendants sur la même
+ * grille — le principal et le secondaire d'un badge classique.
+ */
+function paintTextLayer(ctx, n, sizeMm, shape, inset, cfg) {
+  const content = (cfg.content || '').trim();
+  if (!content) return false;
+
+  const pxPerMm = n / sizeMm;
+  const sizePx = cfg.size * pxPerMm;
+  const fontFamily = FONTS[cfg.font] || FONTS.sans;
+  ctx.font = `${cfg.bold ? 'bold ' : ''}${sizePx}px ${fontFamily}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  const c = n / 2;
+  if (cfg.place === 'line') {
+    ctx.fillText(content, c, c + (cfg.offset / 100) * n);
+    return true;
+  }
+
+  const bottom = cfg.place === 'arcBottom';
+  const bandMm = inradius(shape, sizeMm, inset) - cfg.size * 0.62;
+  const radius = Math.max(sizePx, bandMm * pxPerMm);
+  const spacing = (cfg.spacing / 100) * sizePx;
+  const chars = [...content];
+  let widths = chars.map((ch) => ctx.measureText(ch).width + spacing);
+  let total = widths.reduce((a, b) => a + b, 0) / radius;
+
+  // Au-delà de cet arc, le texte reviendrait sur lui-même : on réduit alors
+  // les lettres plutôt que de laisser la fin recouvrir le début.
+  const MAX_ARC = 1.7 * Math.PI;
+  if (total > MAX_ARC) {
+    const shrink = MAX_ARC / total;
+    ctx.font = `${cfg.bold ? 'bold ' : ''}${sizePx * shrink}px ${fontFamily}`;
+    widths = widths.map((w) => w * shrink);
+    total = MAX_ARC;
+  }
+
+  let angle = bottom ? Math.PI / 2 + total / 2 : -Math.PI / 2 - total / 2;
+  for (let i = 0; i < chars.length; i++) {
+    const step = widths[i] / radius;
+    angle += bottom ? -step / 2 : step / 2;
+    ctx.save();
+    ctx.translate(c + radius * Math.cos(angle), c + radius * Math.sin(angle));
+    ctx.rotate(angle + (bottom ? -Math.PI / 2 : Math.PI / 2));
+    ctx.fillText(chars[i], 0, 0);
+    ctx.restore();
+    angle += bottom ? -step / 2 : step / 2;
+  }
+  return true;
+}
+
+/**
  * Rend le texte dans la grille. Le texte est traité à part du reste de l'image :
  * il n'est donc affecté ni par le seuillage ni par l'inversion, et reste lisible
  * quel que soit le réglage du visuel importé.
+ *
+ * Deux textes indépendants sont acceptés — la mise en page classique d'un
+ * badge, nom en bas et coordonnées en haut, sans quoi elle serait impossible.
+ * Ils partagent la police, réglée une seule fois, mais gardent chacun leur
+ * taille, leur disposition et leur épaisseur.
  */
 function textMask(state, n, sizeMm) {
-  const content = (state.text || '').trim();
-  if (!content) return null;
-
   const canvas = scratch('text', n, n);
   const ctx = ctx2d(canvas);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#fff';
   ctx.fillRect(0, 0, n, n);
-
-  const pxPerMm = n / sizeMm;
-  const sizePx = state.textSize * pxPerMm;
   ctx.fillStyle = '#000';
-  ctx.font = `${state.textBold ? 'bold ' : ''}${sizePx}px ${FONTS[state.font] || FONTS.sans}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
 
-  const c = n / 2;
-  if (state.textPlace === 'line') {
-    ctx.fillText(content, c, c + (state.textOffset / 100) * n);
-  } else {
-    const bottom = state.textPlace === 'arcBottom';
-    const bandMm = inradius(state.shape, sizeMm, contentInset(state)) - state.textSize * 0.62;
-    const radius = Math.max(sizePx, bandMm * pxPerMm);
-    const spacing = (state.textSpacing / 100) * sizePx;
-    const chars = [...content];
-    let widths = chars.map((ch) => ctx.measureText(ch).width + spacing);
-    let total = widths.reduce((a, b) => a + b, 0) / radius;
-
-    // Au-delà de cet arc, le texte reviendrait sur lui-même : on réduit alors
-    // les lettres plutôt que de laisser la fin recouvrir le début.
-    const MAX_ARC = 1.7 * Math.PI;
-    if (total > MAX_ARC) {
-      const shrink = MAX_ARC / total;
-      ctx.font = `${state.textBold ? 'bold ' : ''}${sizePx * shrink}px ${FONTS[state.font] || FONTS.sans}`;
-      widths = widths.map((w) => w * shrink);
-      total = MAX_ARC;
-    }
-
-    let angle = bottom ? Math.PI / 2 + total / 2 : -Math.PI / 2 - total / 2;
-    for (let i = 0; i < chars.length; i++) {
-      const step = widths[i] / radius;
-      angle += bottom ? -step / 2 : step / 2;
-      ctx.save();
-      ctx.translate(c + radius * Math.cos(angle), c + radius * Math.sin(angle));
-      ctx.rotate(angle + (bottom ? -Math.PI / 2 : Math.PI / 2));
-      ctx.fillText(chars[i], 0, 0);
-      ctx.restore();
-      angle += bottom ? -step / 2 : step / 2;
-    }
-  }
+  const inset = contentInset(state);
+  const drewPrimary = paintTextLayer(ctx, n, sizeMm, state.shape, inset, {
+    content: state.text, place: state.textPlace, size: state.textSize,
+    spacing: state.textSpacing, offset: state.textOffset, bold: state.textBold, font: state.font,
+  });
+  const drewSecondary = paintTextLayer(ctx, n, sizeMm, state.shape, inset, {
+    content: state.text2, place: state.textPlace2, size: state.textSize2,
+    spacing: state.textSpacing2, offset: state.textOffset2, bold: state.textBold2, font: state.font,
+  });
+  if (!drewPrimary && !drewSecondary) return null;
 
   const data = ctx.getImageData(0, 0, n, n).data;
   const mask = new Uint8Array(n * n);

@@ -28,7 +28,7 @@ const EXPORT_RE = /^export\s+(?:async\s+)?(?:function|const|let|class)\s+([A-Za-
 
 /** Ordre de dépendance, vérifié plus bas contre les imports réels. */
 const ORDER = [
-  'geometry.js', 'raster.js', 'trace.js', 'shapes.js', 'presets-tabler.js', 'presets.js',
+  'geometry.js', 'raster.js', 'trace.js', 'nesting.js', 'shapes.js', 'presets-tabler.js', 'presets.js',
   'pipeline.js', 'sources.js', 'render.js', 'exportSvg.js', 'state.js',
   'library.js', 'controls.js', 'ui.js', 'main.js',
 ];

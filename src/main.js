@@ -11,13 +11,13 @@ import { PRESETS } from './presets.js';
 import { sourceFromFile, sourceFromPreset, sourceFromBlob, sourceToBlob } from './sources.js';
 import { buildModel } from './pipeline.js';
 import { renderPreview, renderToCanvas, PAD } from './render.js';
-import { buildSvg, downloadText, downloadBlob, fileName } from './exportSvg.js';
+import { buildSvg, buildSheetSvg, downloadText, downloadBlob, fileName } from './exportSvg.js';
+import { packSheet } from './nesting.js';
 import {
   isAvailable, listVersions, getVersion, putVersion, deleteVersion, renameVersion,
-  newId, signature,
+  newId, signature, getWorkspaceSource, setWorkspaceSource,
 } from './library.js';
 
-const SOURCE_KEY = 'reflecto.source.v1';
 const $ = (id) => document.getElementById(id);
 
 const dom = {
@@ -25,7 +25,6 @@ const dom = {
   sourceFields: $('source-fields'),
   framing: $('framing'),
   cutFields: $('cut-fields'),
-  cutPanel: $('cut-panel'),
   presets: $('presets'),
   dropzone: $('dropzone'),
   file: $('file'),
@@ -39,9 +38,24 @@ const dom = {
   quality: $('quality'),
   showCuts: $('show-cuts'),
   mirror: $('f-mirrorX'),
+  mirrorExport: $('mirror-export'),
+  undo: $('btn-undo'),
+  redo: $('btn-redo'),
   versions: $('versions'),
   saveButton: $('btn-save'),
   modeButtons: [...document.querySelectorAll('[data-mode]')],
+  sheetSource: $('sheet-source'),
+  sheetCopiesField: $('sheet-copies-field'),
+  sheetCopies: $('sheet-copies'),
+  sheetSize: $('sheet-size'),
+  sheetCustomFields: $('sheet-custom-fields'),
+  sheetWidth: $('sheet-width'),
+  sheetHeight: $('sheet-height'),
+  sheetGap: $('sheet-gap'),
+  sheetGapValue: $('sheet-gap-value'),
+  sheetBuild: $('btn-sheet-build'),
+  sheetResult: $('sheet-result'),
+  sheetDownload: $('btn-sheet-download'),
 };
 
 let source = null;
@@ -58,6 +72,7 @@ let dirty = false;
 const store = createStore((state, keys) => {
   syncControls(state);
   syncToolbar(state);
+  syncHistoryButtons();
   refreshDirty();
   const displayOnly = keys.every((k) => k === 'previewMode' || k === 'showCuts');
   if (displayOnly && model) draw();
@@ -74,6 +89,11 @@ const syncControls = (state) => {
   for (const sync of syncs) sync(state);
   dom.mirror.checked = state.mirrorX;
 };
+
+function syncHistoryButtons() {
+  dom.undo.disabled = !store.canUndo();
+  dom.redo.disabled = !store.canRedo();
+}
 
 /* ------------------------------------------------------------------ calcul */
 
@@ -144,6 +164,21 @@ function updateStats() {
 
 /* ------------------------------------------------------------------ source */
 
+/**
+ * Enregistre le visuel affiché comme visuel de travail, pour le retrouver au
+ * prochain chargement — les réglages, eux, survivent déjà via `localStorage`.
+ * Silencieux et sans attendre : un échec ne doit pas interrompre l'édition,
+ * un stockage indisponible dégrade juste la mémoire d'une visite à l'autre.
+ */
+async function persistWorkspace() {
+  if (!libraryReady) return;
+  try {
+    await setWorkspaceSource(await snapshotSource());
+  } catch {
+    // Meilleur effort : la persistance du visuel est un confort, pas une garantie.
+  }
+}
+
 function setSource(next, { resetFraming = true } = {}) {
   source = next;
   dom.sourceName.textContent = next ? next.name : 'Aucun visuel';
@@ -152,11 +187,12 @@ function setSource(next, { resetFraming = true } = {}) {
   for (const button of dom.presets.querySelectorAll('.preset')) {
     button.classList.toggle('is-active', Boolean(next) && button.dataset.preset === next.presetId);
   }
-  try {
-    localStorage.setItem(SOURCE_KEY, JSON.stringify(
-      next && next.kind === 'preset' ? { kind: 'preset', id: next.presetId } : { kind: 'none' },
-    ));
-  } catch { /* persistance optionnelle */ }
+
+  // Changer de visuel change de dessin : annuler ne doit pas ramener les
+  // réglages d'une autre image sur celle-ci.
+  store.clearHistory();
+  syncHistoryButtons();
+  persistWorkspace();
 
   if (resetFraming) {
     const framing = {};
@@ -204,9 +240,21 @@ async function snapshotSource() {
   };
 }
 
+/** Reconstitue le visuel d'une version enregistrée, sans toucher à l'état affiché. */
+async function sourceForSaved(saved) {
+  if (!saved) return null;
+  if (saved.kind === 'preset') {
+    const preset = PRESETS.find((p) => p.id === saved.presetId);
+    return preset ? sourceFromPreset(preset) : null;
+  }
+  if (saved.blob) return sourceFromBlob(saved.blob, saved.name, saved.kind, saved.bbox);
+  return null;
+}
+
 async function refreshVersions() {
   versions = await listVersions();
   renderList();
+  syncSheetVersionsOption();
 }
 
 function renderList() {
@@ -264,14 +312,7 @@ async function storeVersion(id = null) {
 
 async function openVersion(version) {
   try {
-    let next = null;
-    const saved = version.source;
-    if (saved?.kind === 'preset') {
-      const preset = PRESETS.find((p) => p.id === saved.presetId);
-      if (preset) next = sourceFromPreset(preset);
-    } else if (saved?.blob) {
-      next = await sourceFromBlob(saved.blob, saved.name, saved.kind, saved.bbox);
-    }
+    const next = await sourceForSaved(version.source);
     setSource(next, { resetFraming: false });
     store.patch({ ...version.state });
     currentId = version.id;
@@ -291,12 +332,123 @@ async function initLibrary() {
   if (!libraryReady) {
     dom.saveButton.disabled = true;
     dom.versions.textContent =
-      'Le stockage local est indisponible dans ce navigateur — en navigation privée, par exemple. Les exports SVG restent le moyen de conserver un modèle.';
+      'Le stockage local est indisponible dans ce navigateur — en navigation privée, par exemple. Ni les versions ni le visuel affiché ne seront retrouvés après un rechargement ; les exports SVG restent le moyen de les conserver.';
     dom.versions.className = 'versions versions__empty';
     return;
   }
   dom.saveButton.addEventListener('click', () => storeVersion(null));
   await refreshVersions();
+}
+
+/* ------------------------------------------------------------------ planche */
+
+const SHEET_PRESETS = {
+  '210x297': [210, 297], '297x210': [297, 210],
+  '297x420': [297, 420], '420x297': [420, 297],
+};
+
+function sheetDims() {
+  if (dom.sheetSize.value === 'custom') {
+    const w = Math.max(50, Math.min(2000, Number(dom.sheetWidth.value) || 210));
+    const h = Math.max(50, Math.min(2000, Number(dom.sheetHeight.value) || 297));
+    return [w, h];
+  }
+  return SHEET_PRESETS[dom.sheetSize.value] || [210, 297];
+}
+
+function syncSheetVersionsOption() {
+  const option = dom.sheetSource.querySelector('option[value="versions"]');
+  option.disabled = versions.length === 0;
+  if (option.disabled && dom.sheetSource.value === 'versions') {
+    dom.sheetSource.value = 'copies';
+    dom.sheetCopiesField.hidden = false;
+  }
+}
+
+let lastSheet = null;
+
+function showSheetResult(text, warn) {
+  dom.sheetResult.hidden = false;
+  dom.sheetResult.className = warn ? 'sheet__result sheet__result--warn' : 'sheet__result';
+  dom.sheetResult.textContent = text;
+}
+
+async function buildSheet() {
+  dom.sheetDownload.hidden = true;
+  dom.sheetResult.hidden = true;
+  lastSheet = null;
+
+  const [w, h] = sheetDims();
+  const gap = Number(dom.sheetGap.value);
+  let items;
+
+  if (dom.sheetSource.value === 'versions') {
+    if (!versions.length) {
+      flash(dom.flash, 'Aucune version enregistrée à mettre en planche.');
+      return;
+    }
+    dom.busy.hidden = false;
+    try {
+      items = [];
+      for (const v of versions) {
+        const src = await sourceForSaved(v.source);
+        items.push({ model: buildModel(v.state, src) });
+      }
+    } catch (err) {
+      flash(dom.flash, `Planche impossible : ${err.message}`);
+      return;
+    } finally {
+      dom.busy.hidden = true;
+    }
+  } else {
+    if (!model) {
+      flash(dom.flash, 'Rien à mettre en planche pour l’instant.');
+      return;
+    }
+    const count = Math.max(1, Math.min(60, Math.round(Number(dom.sheetCopies.value) || 1)));
+    items = Array.from({ length: count }, () => ({ model }));
+  }
+
+  const { placed, overflow } = packSheet(
+    items.map((it) => ({ ...it, size: it.model.size })), w, h, gap,
+  );
+
+  if (!placed.length) {
+    showSheetResult('Aucun disque ne tient sur ce format : agrandissez la planche, augmentez le format ou réduisez le diamètre.', true);
+    return;
+  }
+
+  const svg = buildSheetSvg({
+    width: w, height: h, cutOutline: store.get('cutOutline'),
+    title: 'Planche de découpe — Réflecto', mirror: dom.mirrorExport.checked,
+    items: placed.map(({ model: m, x, y }) => ({ model: m, x, y })),
+  });
+  lastSheet = { svg, count: placed.length };
+
+  showSheetResult(
+    overflow.length
+      ? `${placed.length} disque(s) placés sur ${items.length} demandés — ${overflow.length} ne tiennent pas sur cette planche.`
+      : `${placed.length} disque(s) prêt(s) pour la découpe.`,
+    overflow.length > 0,
+  );
+  dom.sheetDownload.hidden = false;
+}
+
+function bindSheetPanel() {
+  dom.sheetSize.addEventListener('change', () => {
+    dom.sheetCustomFields.hidden = dom.sheetSize.value !== 'custom';
+  });
+  dom.sheetSource.addEventListener('change', () => {
+    dom.sheetCopiesField.hidden = dom.sheetSource.value !== 'copies';
+  });
+  dom.sheetGap.addEventListener('input', () => {
+    dom.sheetGapValue.textContent = `${dom.sheetGap.value} mm`;
+  });
+  dom.sheetBuild.addEventListener('click', buildSheet);
+  dom.sheetDownload.addEventListener('click', () => {
+    if (!lastSheet) return;
+    downloadText(`planche-${lastSheet.count}-disques.svg`, lastSheet.svg);
+  });
 }
 
 /* ------------------------------------------------------- interactions vues */
@@ -323,6 +475,7 @@ function bindCanvasGestures() {
       ox: store.get('offsetX'),
       oy: store.get('offsetY'),
       side: discSizePx(),
+      recorded: false,
     };
     dom.canvas.setPointerCapture(e.pointerId);
     dom.canvas.classList.add('is-dragging');
@@ -330,6 +483,13 @@ function bindCanvasGestures() {
 
   dom.canvas.addEventListener('pointermove', (e) => {
     if (!dragging || dragging.id !== e.pointerId) return;
+    // Un instantané au premier mouvement réel, pas au clic : un clic sans
+    // glisser (pour donner le focus au clavier, par exemple) ne doit rien
+    // ajouter à l'historique.
+    if (!dragging.recorded) {
+      store.snapshot();
+      dragging.recorded = true;
+    }
     const dx = ((e.clientX - dragging.x) / dragging.side) * 100;
     const dy = ((e.clientY - dragging.y) / dragging.side) * 100;
     store.patch({ offsetX: clampOffset(dragging.ox + dx), offsetY: clampOffset(dragging.oy + dy) });
@@ -347,26 +507,37 @@ function bindCanvasGestures() {
   // aperçu, détourner le défilement empêche de parcourir la page. Le clavier
   // offre en revanche le réglage fin que la souris ne donne pas.
   const NUDGE = { ArrowLeft: ['offsetX', -1], ArrowRight: ['offsetX', 1], ArrowUp: ['offsetY', -1], ArrowDown: ['offsetY', 1] };
+  // Une touche maintenue répète l'événement 'keydown' plusieurs fois par
+  // seconde : un seul instantané par appui, pas un par répétition.
+  let keyRecording = false;
   dom.canvas.addEventListener('keydown', (e) => {
     if (!source) return;
     const move = NUDGE[e.key];
+    const isZoom = e.key === '+' || e.key === '=' || e.key === '-';
+    if (!move && !isZoom) return;
+    e.preventDefault();
+    if (!keyRecording) {
+      store.snapshot();
+      keyRecording = true;
+    }
     if (move) {
-      e.preventDefault();
       const [key, dir] = move;
       store.set(key, clampOffset(store.get(key) + dir * (e.shiftKey ? 2 : 0.5)));
-      return;
-    }
-    if (e.key === '+' || e.key === '=' || e.key === '-') {
-      e.preventDefault();
+    } else {
       const delta = e.key === '-' ? -5 : 5;
       store.set('zoom', Math.max(10, Math.min(400, store.get('zoom') + delta)));
     }
   });
+  dom.canvas.addEventListener('keyup', () => { keyRecording = false; });
 }
 
 function bindFramingActions() {
-  dom.mirror.addEventListener('change', () => store.set('mirrorX', dom.mirror.checked));
+  dom.mirror.addEventListener('change', () => {
+    store.snapshot();
+    store.set('mirrorX', dom.mirror.checked);
+  });
   $('btn-recenter').addEventListener('click', () => {
+    store.snapshot();
     store.patch({ offsetX: 0, offsetY: 0, zoom: 100, rotation: 0 });
   });
 }
@@ -436,6 +607,28 @@ function bindToolbar() {
   dom.quality.addEventListener('change', () => store.set('quality', Number(dom.quality.value)));
 }
 
+/** Annuler / rétablir porte sur les réglages, jamais sur le choix du visuel. */
+function bindHistory() {
+  dom.undo.addEventListener('click', () => store.undo());
+  dom.redo.addEventListener('click', () => store.redo());
+
+  document.addEventListener('keydown', (e) => {
+    const mod = e.ctrlKey || e.metaKey;
+    if (!mod || e.key.toLowerCase() !== 'z') return;
+    // Dans un champ de texte, le raccourci reste au navigateur : son annulation
+    // native porte sur la frappe, plus fine que notre historique de réglages.
+    // Une case à cocher, un curseur ou une liste sont aussi des <input> mais
+    // n'ont pas d'annulation native : eux relèvent bien de notre historique.
+    const el = document.activeElement;
+    const isTextEditing = el?.tagName === 'TEXTAREA'
+      || (el?.tagName === 'INPUT' && (el.type === 'text' || el.type === 'search'));
+    if (isTextEditing) return;
+    e.preventDefault();
+    if (e.shiftKey) store.redo();
+    else store.undo();
+  });
+}
+
 function exportTitle() {
   const text = (store.get('text') || '').trim();
   return text ? `Disque réfléchissant — ${text}` : 'Disque réfléchissant';
@@ -445,13 +638,16 @@ function bindExports() {
   $('btn-svg-cut').addEventListener('click', () => {
     if (!model) return;
     downloadText(fileName(store.state, 'decoupe', 'svg'),
-      buildSvg(model, { mode: 'cut', cutOutline: store.get('cutOutline'), title: exportTitle() }));
+      buildSvg(model, {
+        mode: 'cut', cutOutline: store.get('cutOutline'),
+        title: exportTitle(), mirror: dom.mirrorExport.checked,
+      }));
   });
 
   $('btn-svg-preview').addEventListener('click', () => {
     if (!model) return;
     downloadText(fileName(store.state, 'apercu', 'svg'),
-      buildSvg(model, { mode: 'preview', title: exportTitle() }));
+      buildSvg(model, { mode: 'preview', title: exportTitle(), mirror: dom.mirrorExport.checked }));
   });
 
   $('btn-png').addEventListener('click', () => {
@@ -475,35 +671,44 @@ function bindExports() {
 
 /* -------------------------------------------------------------- démarrage */
 
-function restoreSource() {
-  let ref = { kind: 'preset', id: 'bike' };
+/** Retrouve le visuel affiché lors de la dernière visite, sinon le motif vélo. */
+async function restoreSource() {
   try {
-    const raw = localStorage.getItem(SOURCE_KEY);
-    if (raw) ref = JSON.parse(raw);
-  } catch { /* valeur par défaut */ }
-  if (ref?.kind === 'preset') {
-    const preset = PRESETS.find((p) => p.id === ref.id);
-    if (preset) {
-      setSource(sourceFromPreset(preset), { resetFraming: false });
-      return;
+    if (libraryReady) {
+      const record = await getWorkspaceSource();
+      if (record) {
+        // `record.source` peut valoir `null` : l'utilisateur avait
+        // explicitement retiré son visuel, ce choix se respecte aussi.
+        const next = await sourceForSaved(record.source);
+        setSource(next, { resetFraming: false });
+        return;
+      }
     }
+  } catch {
+    // Le stockage a pu être vidé ou corrompu entre deux visites : on repart
+    // simplement du motif par défaut plutôt que de bloquer le démarrage.
   }
-  setSource(null, { resetFraming: false });
+  const bike = PRESETS.find((p) => p.id === 'bike');
+  setSource(bike ? sourceFromPreset(bike) : null, { resetFraming: false });
 }
 
-function init() {
+async function init() {
   buildPresetGallery(dom.presets, (preset) => setSource(sourceFromPreset(preset)));
 
   bindDropzone();
   bindCanvasGestures();
   bindFramingActions();
   bindToolbar();
+  bindHistory();
   bindExports();
+  bindSheetPanel();
 
   syncControls(store.state);
   syncToolbar(store.state);
-  restoreSource();
-  initLibrary();
+  syncHistoryButtons();
+
+  await initLibrary();
+  await restoreSource();
 
   let resizeTimer = null;
   window.addEventListener('resize', () => {

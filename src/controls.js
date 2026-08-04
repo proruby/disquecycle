@@ -79,9 +79,9 @@ export const SIDEBAR_SECTIONS = [
   {
     id: 'text',
     title: 'Texte',
-    hint: 'Le texte est vectorisé avec le reste : aucune police à fournir à la découpeuse.',
+    hint: 'Le texte est vectorisé avec le reste : aucune police à fournir à la découpeuse. Un badge classique associe deux textes — nom en bas, coordonnées en haut.',
     fields: [
-      { key: 'text', type: 'text', label: 'Contenu', placeholder: 'Prénom, club, message…', maxLength: 60 },
+      { key: 'text', type: 'text', label: 'Texte principal', placeholder: 'Prénom, club, message…', maxLength: 60 },
       { key: 'font', type: 'select', label: 'Police', options: FONT_CHOICES },
       {
         key: 'textPlace', type: 'select', label: 'Disposition',
@@ -101,6 +101,27 @@ export const SIDEBAR_SECTIONS = [
         showIf: (s) => s.textPlace === 'line',
       },
       { key: 'textBold', type: 'toggle', label: 'Renforcer le trait' },
+
+      { type: 'divider', label: 'Texte secondaire' },
+      { key: 'text2', type: 'text', label: 'Contenu', placeholder: 'Téléphone, ville, réseau…', maxLength: 60 },
+      {
+        key: 'textPlace2', type: 'select', label: 'Disposition',
+        options: [
+          { value: 'arcTop', label: 'Arc en haut' },
+          { value: 'arcBottom', label: 'Arc en bas' },
+          { value: 'line', label: 'Ligne droite' },
+        ],
+      },
+      { key: 'textSize2', type: 'range', label: 'Taille', min: 3, max: 25, step: 0.5, unit: 'mm' },
+      {
+        key: 'textSpacing2', type: 'range', label: 'Interlettrage', min: -20, max: 60, step: 1, unit: '%',
+        showIf: (s) => s.textPlace2 !== 'line',
+      },
+      {
+        key: 'textOffset2', type: 'range', label: 'Position verticale', min: -35, max: 35, step: 1, unit: '%',
+        showIf: (s) => s.textPlace2 === 'line',
+      },
+      { key: 'textBold2', type: 'toggle', label: 'Renforcer le trait' },
     ],
   },
 ];
