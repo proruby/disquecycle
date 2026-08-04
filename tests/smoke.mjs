@@ -239,6 +239,83 @@ async function main() {
     check('le bouton d’export télécharge un SVG', file.suggestedFilename().endsWith('.svg'),
       file.suggestedFilename());
 
+    // --- réglages mis en avant
+    check('le zoom est sous l’aperçu et non dans le panneau',
+      (await page.locator('#framing #f-zoom').count()) === 1
+      && (await page.locator('#panel #f-zoom').count()) === 0);
+    check('le déplacement est sous l’aperçu',
+      (await page.locator('#framing #f-offsetX').count()) === 1
+      && (await page.locator('#framing #f-offsetY').count()) === 1);
+    check('la préparation à la découpe est dans son propre bloc',
+      (await page.locator('#cut-panel #f-grow').count()) === 1
+      && (await page.locator('#panel #f-grow').count()) === 0);
+
+    const zoomInit = Number(await page.inputValue('#f-zoom'));
+    await page.locator('[data-key="zoom"] .stepper__btn').last().click();
+    await page.waitForTimeout(300);
+    check('les boutons pas à pas règlent le zoom',
+      Number(await page.inputValue('#f-zoom')) === zoomInit + 5,
+      `${zoomInit} % → ${await page.inputValue('#f-zoom')} %`);
+
+    await page.click('#btn-recenter');
+    await page.waitForTimeout(400);
+    check('« Recentrer » remet le cadrage à zéro',
+      (await page.inputValue('#f-zoom')) === '100'
+      && (await page.inputValue('#f-offsetX')) === '0'
+      && (await page.inputValue('#f-rotation')) === '0');
+
+    // --- bibliothèque de versions
+    page.on('dialog', (d) => d.accept('Version renommée'));
+
+    await page.click('.preset[data-preset="star"]');
+    await page.fill('#f-text', 'VERSION A');
+    await page.waitForTimeout(700);
+    await page.click('#btn-save');
+    await page.waitForTimeout(900);
+    check('une version est enregistrée', (await page.locator('.version').count()) === 1);
+    check('la version porte un nom lisible',
+      (await page.locator('.version__name').first().textContent()) === 'VERSION A');
+    check('la vignette est produite',
+      (await page.locator('.version__thumb').first().getAttribute('src'))?.startsWith('blob:'));
+    check('la version ouverte est signalée', (await page.locator('.badge--current').count()) === 1);
+
+    await page.fill('#f-text', 'VERSION A RETOUCHEE');
+    await page.waitForTimeout(700);
+    check('une retouche est signalée comme telle', (await page.locator('.badge--dirty').count()) === 1);
+
+    await page.click('.preset[data-preset="heart"]');
+    await page.fill('#f-text', 'VERSION B');
+    await page.waitForTimeout(700);
+    await page.click('#btn-save');
+    await page.waitForTimeout(900);
+    check('une seconde version coexiste', (await page.locator('.version').count()) === 2);
+
+    const carteA = page.locator('.version').filter({ hasText: 'VERSION A' }).first();
+    await carteA.getByRole('button', { name: 'Ouvrir' }).click();
+    await page.waitForTimeout(1200);
+    check('ouvrir une version restaure son texte',
+      (await page.inputValue('#f-text')) === 'VERSION A',
+      await page.inputValue('#f-text'));
+    check('ouvrir une version restaure son motif',
+      (await page.locator('.preset[data-preset="star"].is-active').count()) === 1);
+    check('ouvrir une version restaure ses réglages',
+      (await page.locator('.badge--current').count()) === 1);
+
+    await page.locator('.version.is-current').getByRole('button', { name: 'Renommer' }).click();
+    await page.waitForTimeout(600);
+    check('renommer une version fonctionne',
+      (await page.locator('.version.is-current .version__name').textContent()) === 'Version renommée');
+
+    await page.locator('.version').first().getByRole('button', { name: 'Supprimer' }).click();
+    await page.waitForTimeout(600);
+    check('supprimer une version fonctionne', (await page.locator('.version').count()) === 1);
+
+    // Une version enregistrée doit survivre au rechargement de la page.
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForSelector('#stats .chip', { timeout: 10000 });
+    await page.waitForTimeout(700);
+    check('les versions survivent au rechargement', (await page.locator('.version').count()) === 1);
+
     await page.click('[data-mode="night"]');
     await page.waitForTimeout(400);
     await page.screenshot({ path: path.join(ROOT, 'tests', 'apercu.png'), fullPage: false });

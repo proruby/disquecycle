@@ -30,7 +30,7 @@
   <aside class="sidebar">
     <section class="group group--source">
       <div class="group__head group__head--static">
-        <span class="group__index">0</span><span class="group__title">Visuel</span>
+        <span class="group__index">1</span><span class="group__title">Visuel</span>
       </div>
       <div class="group__body">
         <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Importer un visuel">
@@ -51,6 +51,7 @@
         <p class="flash" id="flash" hidden></p>
         <p class="group__hint">…ou partez d’un motif&nbsp;:</p>
         <div class="presets" id="presets"></div>
+        <div class="fields fields--tight" id="source-fields"></div>
       </div>
     </section>
 
@@ -76,11 +77,25 @@
     </div>
 
     <div class="canvas-wrap">
-      <canvas id="preview" aria-label="Aperçu du disque"></canvas>
+      <canvas id="preview" tabindex="0" aria-label="Aperçu du disque — flèches pour déplacer le motif, + et − pour zoomer"></canvas>
       <div class="busy" id="busy" hidden>calcul…</div>
     </div>
 
-    <p class="warning" id="warning" hidden></p>
+    <section class="framing" aria-label="Cadrage du motif">
+      <div class="framing__head">
+        <h2>Cadrage</h2>
+        <div class="framing__buttons">
+          <label class="checkline">
+            <input type="checkbox" id="f-mirrorX">
+            <span>Miroir</span>
+          </label>
+          <button type="button" id="btn-recenter" class="btn btn--small">Recentrer</button>
+        </div>
+      </div>
+      <div class="framing__fields" id="framing"></div>
+      <p class="framing__tip">Glissez directement le motif dans l’aperçu, ou utilisez les flèches du clavier quand il est sélectionné.</p>
+    </section>
+
     <div class="stats" id="stats"></div>
 
     <div class="actions">
@@ -89,6 +104,25 @@
       <button type="button" id="btn-png" class="btn">Image PNG</button>
     </div>
   </section>
+
+  <aside class="rail">
+    <section class="panel panel--cut" id="cut-panel">
+      <header class="panel__head">
+        <h2>Préparation à la découpe</h2>
+        <p>Ces réglages ne changent pas le dessin, ils le rendent découpable : moins de points, pas de miettes, des traits assez épais pour survivre au dévinylage.</p>
+      </header>
+      <div class="fields" id="cut-fields"></div>
+      <p class="warning" id="warning" hidden></p>
+    </section>
+
+    <section class="panel panel--versions">
+      <header class="panel__head panel__head--row">
+        <h2>Mes versions</h2>
+        <button type="button" id="btn-save" class="btn btn--small btn--primary">Enregistrer</button>
+      </header>
+      <div class="versions" id="versions"></div>
+    </section>
+  </aside>
 
 </main>
 

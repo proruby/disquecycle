@@ -17,7 +17,8 @@
   --warn: #ffcb5c;
   --radius: 12px;
   --radius-sm: 8px;
-  --sidebar: 384px;
+  --sidebar: 356px;
+  --rail: 330px;
 }
 
 * { box-sizing: border-box; }
@@ -64,17 +65,21 @@ button { font: inherit; color: inherit; }
 
 /* ------------------------------------------------------------------- grille */
 
+/* Trois colonnes : ce que l'on compose à gauche, ce que l'on regarde au
+   centre, ce qui part à la machine et ce que l'on conserve à droite. */
 .layout {
   display: grid;
-  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+  grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--rail);
   align-items: start;
-  gap: 24px;
+  gap: 20px;
   padding: 24px 28px 40px;
-  max-width: 1560px;
+  max-width: 1720px;
   margin: 0 auto;
 }
 
-.sidebar { display: flex; flex-direction: column; gap: 12px; }
+.sidebar,
+.rail { display: flex; flex-direction: column; gap: 12px; }
+.rail { position: sticky; top: 24px; }
 
 /* ------------------------------------------------------------------ groupes */
 
@@ -131,6 +136,12 @@ button { font: inherit; color: inherit; }
 }
 
 .fields { display: flex; flex-direction: column; gap: 14px; }
+.fields--tight {
+  gap: 11px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line-soft);
+}
 .field[hidden] { display: none; }
 
 .field__head {
@@ -373,6 +384,54 @@ button { font: inherit; color: inherit; }
   cursor: grab;
 }
 #preview.is-dragging { cursor: grabbing; }
+#preview:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Barre de cadrage : les réglages que l'on ajuste en regardant l'aperçu,
+   sortis du panneau latéral pour être sous les yeux au bon moment. */
+.framing {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px 13px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+.framing__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.framing__head h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+.framing__buttons { display: flex; gap: 12px; align-items: center; }
+.framing__fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px 20px;
+}
+.framing__tip { color: var(--text-faint); font-size: 11.5px; }
+
+/* Curseur encadré de deux boutons : viser une valeur au pixel près sur un
+   curseur court est pénible, et ces réglages se corrigent souvent d'un cran. */
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper .field__range { flex: 1; min-width: 0; }
+.stepper__btn {
+  width: 24px; height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.stepper__btn:hover { border-color: var(--accent-dim); color: var(--accent); }
 
 .busy {
   position: absolute;
@@ -429,6 +488,88 @@ button { font: inherit; color: inherit; }
 .btn--primary:hover { background: #e6ff6b; border-color: #e6ff6b; }
 .btn--ghost { background: none; color: var(--text-faint); }
 .btn--block { width: 100%; }
+.btn--small { padding: 5px 11px; font-size: 12px; border-radius: 6px; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ------------------------------------------------------- colonne de droite */
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  padding: 15px 15px 17px;
+}
+.panel__head { margin-bottom: 14px; }
+.panel__head h2 { font-size: 14.5px; }
+.panel__head p { margin-top: 5px; color: var(--text-faint); font-size: 12px; line-height: 1.5; }
+.panel__head--row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+/* Le bloc destiné à la machine est le seul à porter l'accent : c'est l'étape
+   qui décide si la découpe tiendra, et elle se distingue du dessin. */
+.panel--cut {
+  border-color: rgba(216, 255, 62, 0.32);
+  background: linear-gradient(180deg, rgba(216, 255, 62, 0.05), transparent 120px), var(--bg-raised);
+}
+.panel--cut .panel__head h2 { color: var(--accent); }
+.panel--cut .warning { margin-top: 14px; }
+
+.versions { display: flex; flex-direction: column; gap: 8px; }
+.versions__empty {
+  color: var(--text-faint);
+  font-size: 12.5px;
+  line-height: 1.55;
+  padding: 6px 0;
+}
+
+.version {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 11px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+.version.is-current { border-color: var(--accent-dim); background: rgba(216, 255, 62, 0.05); }
+.version__thumb {
+  width: 56px; height: 56px;
+  border-radius: 6px;
+  background: #0d1014;
+  object-fit: cover;
+}
+.version__thumb--empty { border: 1px dashed var(--line); }
+.version__body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.version__name {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.version__meta { font-size: 11.5px; color: var(--text-faint); }
+.version__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.badge {
+  align-self: flex-start;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+.badge--current { background: rgba(216, 255, 62, 0.16); color: var(--accent); }
+.badge--dirty { background: rgba(255, 203, 92, 0.16); color: var(--warn); }
 
 /* ---------------------------------------------------------------- aide */
 
@@ -458,9 +599,23 @@ button { font: inherit; color: inherit; }
 
 /* ------------------------------------------------------------ adaptatif */
 
+/* Sous trois colonnes confortables, la colonne de droite passe sous la scène
+   et s'étale en deux blocs plutôt que de comprimer l'aperçu. */
+@media (max-width: 1400px) {
+  .layout { grid-template-columns: var(--sidebar) minmax(0, 1fr); }
+  .rail {
+    grid-column: 2;
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    align-items: start;
+  }
+}
+
 @media (max-width: 1080px) {
   .layout { grid-template-columns: 1fr; }
   .stage { position: static; order: -1; }
+  .rail { grid-column: 1; order: -1; }
   #preview { max-height: 62vh; }
 }
 
@@ -468,6 +623,7 @@ button { font: inherit; color: inherit; }
   .topbar, .layout, .help, .footer { padding-left: 16px; padding-right: 16px; }
   .presets { grid-template-columns: repeat(4, 1fr); }
   .actions .btn { flex: 1 1 45%; }
+  .framing__fields { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

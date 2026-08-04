@@ -1,7 +1,14 @@
 /**
- * Description déclarative du panneau de réglages. L'interface est construite à
- * partir de ces définitions : ajouter un réglage se limite à ajouter une entrée
- * ici et sa valeur par défaut dans `state.js`.
+ * Description déclarative des réglages. L'interface est construite à partir de
+ * ces définitions : ajouter un réglage se limite à ajouter une entrée ici et sa
+ * valeur par défaut dans `state.js`.
+ *
+ * Les réglages sont répartis selon l'endroit où l'on en a besoin, et non selon
+ * leur parenté technique :
+ *   - `FRAMING_FIELDS` sous l'aperçu, parce qu'on les ajuste en regardant ;
+ *   - `SOURCE_FIELDS` avec l'import, dont ils dépendent ;
+ *   - `CUT_SECTION` à l'écart, parce qu'ils regardent la machine et non le dessin ;
+ *   - `SIDEBAR_SECTIONS` pour le reste, dans l'ordre où l'on compose un disque.
  */
 
 import { SHAPES } from './shapes.js';
@@ -9,24 +16,37 @@ import { FONT_CHOICES } from './pipeline.js';
 
 const shapeOptions = Object.entries(SHAPES).map(([value, def]) => ({ value, label: def.label }));
 
-export const SECTIONS = [
+/** Cadrage : les réglages que l'on manipule en regardant l'aperçu. */
+export const FRAMING_FIELDS = [
+  { key: 'zoom', type: 'range', label: 'Zoom', min: 10, max: 400, step: 1, unit: '%', steppers: 5 },
+  { key: 'rotation', type: 'range', label: 'Rotation', min: -180, max: 180, step: 1, unit: '°', steppers: 15 },
+  { key: 'offsetX', type: 'range', label: 'Position ←→', min: -50, max: 50, step: 0.5, unit: '%', steppers: 1 },
+  { key: 'offsetY', type: 'range', label: 'Position ↑↓', min: -50, max: 50, step: 0.5, unit: '%', steppers: 1 },
+];
+
+/** Mise en place initiale du visuel, au plus près du bouton d'import. */
+export const SOURCE_FIELDS = [
   {
-    id: 'framing',
-    title: 'Cadrage',
-    hint: "Placez le visuel dans la zone utile. Vous pouvez aussi le déplacer directement à la souris sur l'aperçu.",
-    fields: [
-      {
-        key: 'fit', type: 'select', label: 'Mise à l’échelle',
-        options: [{ value: 'contain', label: 'Contenir' }, { value: 'cover', label: 'Remplir' }],
-      },
-      { key: 'autoTrim', type: 'toggle', label: 'Rogner les marges vides' },
-      { key: 'zoom', type: 'range', label: 'Zoom', min: 10, max: 400, step: 1, unit: '%' },
-      { key: 'offsetX', type: 'range', label: 'Décalage horizontal', min: -50, max: 50, step: 0.5, unit: '%' },
-      { key: 'offsetY', type: 'range', label: 'Décalage vertical', min: -50, max: 50, step: 0.5, unit: '%' },
-      { key: 'rotation', type: 'range', label: 'Rotation', min: -180, max: 180, step: 1, unit: '°' },
-      { key: 'mirrorX', type: 'toggle', label: 'Miroir horizontal' },
-    ],
+    key: 'fit', type: 'select', label: 'Mise à l’échelle',
+    options: [{ value: 'contain', label: 'Contenir' }, { value: 'cover', label: 'Remplir' }],
   },
+  { key: 'autoTrim', type: 'toggle', label: 'Rogner les marges vides' },
+];
+
+/** Réglages destinés à la machine, mis à l'écart du reste. */
+export const CUT_SECTION = {
+  id: 'cut',
+  title: 'Préparation à la découpe',
+  fields: [
+    { key: 'grow', type: 'range', label: 'Grossir / affiner', min: -1, max: 1, step: 0.05, unit: 'mm' },
+    { key: 'minArea', type: 'range', label: 'Supprimer les éléments plus petits que', min: 0, max: 30, step: 0.5, unit: 'mm²' },
+    { key: 'simplify', type: 'range', label: 'Simplifier les tracés', min: 0, max: 0.4, step: 0.01, unit: 'mm' },
+    { key: 'smooth', type: 'range', label: 'Lisser les courbes', min: 0, max: 100, step: 1, unit: '%' },
+    { key: 'minFeature', type: 'range', label: 'Détail minimal de la machine', min: 0.4, max: 3, step: 0.1, unit: 'mm' },
+  ],
+};
+
+export const SIDEBAR_SECTIONS = [
   {
     id: 'bw',
     title: 'Noir & blanc',
@@ -37,18 +57,6 @@ export const SECTIONS = [
       { key: 'contrast', type: 'range', label: 'Contraste', min: -100, max: 100, step: 1 },
       { key: 'blur', type: 'range', label: 'Adoucir', min: 0, max: 1, step: 0.01, unit: 'mm' },
       { key: 'invert', type: 'toggle', label: 'Inverser le visuel' },
-    ],
-  },
-  {
-    id: 'cut',
-    title: 'Préparation à la découpe',
-    hint: "Ces réglages ne changent pas le dessin, ils le rendent découpable : moins de points, pas de miettes, des traits assez épais pour survivre au dévinylage.",
-    fields: [
-      { key: 'grow', type: 'range', label: 'Grossir / affiner', min: -1, max: 1, step: 0.05, unit: 'mm' },
-      { key: 'minArea', type: 'range', label: 'Supprimer les éléments plus petits que', min: 0, max: 30, step: 0.5, unit: 'mm²' },
-      { key: 'simplify', type: 'range', label: 'Simplifier les tracés', min: 0, max: 0.4, step: 0.01, unit: 'mm' },
-      { key: 'smooth', type: 'range', label: 'Lisser les courbes', min: 0, max: 100, step: 1, unit: '%' },
-      { key: 'minFeature', type: 'range', label: 'Détail minimal de la machine', min: 0.4, max: 3, step: 0.1, unit: 'mm' },
     ],
   },
   {

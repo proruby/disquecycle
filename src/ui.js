@@ -1,6 +1,6 @@
 /**
- * Construction du panneau de réglages à partir des définitions de
- * `controls.js`, et petits composants d'interface associés.
+ * Construction de l'interface à partir des définitions de `controls.js`, et
+ * composants d'affichage associés.
  */
 
 import { PRESETS, presetMarkup } from './presets.js';
@@ -13,7 +13,6 @@ const el = (tag, className, text) => {
 };
 
 function formatValue(field, value) {
-  if (field.type !== 'range') return '';
   const decimals = String(field.step).includes('.') ? String(field.step).split('.')[1].length : 0;
   const n = Number(value).toFixed(decimals).replace('.', ',');
   return field.unit ? `${n} ${field.unit}` : n;
@@ -27,6 +26,7 @@ function buildField(field, store) {
     const label = el('label', 'switch');
     const input = el('input');
     input.type = 'checkbox';
+    input.id = `f-${field.key}`;
     input.checked = Boolean(store.get(field.key));
     input.addEventListener('change', () => store.set(field.key, input.checked));
     label.append(input, el('span', 'switch__track'), el('span', 'switch__label', field.label));
@@ -60,6 +60,28 @@ function buildField(field, store) {
       input.value = store.get(field.key);
       out.textContent = formatValue(field, input.value);
     };
+
+    // Boutons pas à pas : viser une valeur précise sur un curseur court est
+    // pénible, et ces réglages-là se corrigent souvent d'un cran.
+    if (field.steppers) {
+      const row = el('div', 'stepper');
+      const nudge = (delta) => {
+        const next = Math.min(field.max, Math.max(field.min, store.get(field.key) + delta));
+        store.set(field.key, Math.round(next * 100) / 100);
+      };
+      const minus = el('button', 'stepper__btn', '−');
+      const plus = el('button', 'stepper__btn', '+');
+      minus.type = 'button';
+      plus.type = 'button';
+      minus.setAttribute('aria-label', `${field.label} : diminuer`);
+      plus.setAttribute('aria-label', `${field.label} : augmenter`);
+      minus.addEventListener('click', () => nudge(-field.steppers));
+      plus.addEventListener('click', () => nudge(field.steppers));
+      row.append(minus, input, plus);
+      input.id = id;
+      wrap.append(head, row);
+      return wrap;
+    }
   } else if (field.type === 'select') {
     input = el('select', 'field__select');
     for (const opt of field.options) {
@@ -69,9 +91,8 @@ function buildField(field, store) {
     }
     input.value = String(store.get(field.key));
     input.addEventListener('change', () => {
-      const raw = input.value;
       const sample = field.options[0].value;
-      store.set(field.key, typeof sample === 'number' ? Number(raw) : raw);
+      store.set(field.key, typeof sample === 'number' ? Number(input.value) : input.value);
     });
     wrap._sync = () => { input.value = String(store.get(field.key)); };
   } else {
@@ -91,44 +112,55 @@ function buildField(field, store) {
   return wrap;
 }
 
-/** Construit le panneau et renvoie une fonction de synchronisation. */
-export function buildPanel(container, store, sections) {
-  const nodes = [];
-  sections.forEach((section, index) => {
-    const box = el('section', 'group');
-    box.dataset.section = section.id;
-
-    const header = el('button', 'group__head');
-    header.type = 'button';
-    header.setAttribute('aria-expanded', 'true');
-    header.append(el('span', 'group__index', String(index + 1)), el('span', 'group__title', section.title));
-    header.append(el('span', 'group__chevron'));
-
-    const body = el('div', 'group__body');
-    if (section.hint) body.append(el('p', 'group__hint', section.hint));
-    const fields = el('div', 'fields');
-    for (const field of section.fields) {
-      const node = buildField(field, store);
-      nodes.push({ field, node });
-      fields.append(node);
-    }
-    body.append(fields);
-
-    header.addEventListener('click', () => {
-      const open = box.classList.toggle('is-closed');
-      header.setAttribute('aria-expanded', String(!open));
-    });
-
-    box.append(header, body);
-    container.append(box);
+/**
+ * Rend une liste de réglages dans un conteneur et renvoie sa fonction de
+ * synchronisation. Les panneaux, la barre de cadrage et le bloc de découpe
+ * passent tous par ici.
+ */
+export function buildFields(container, store, fields) {
+  const nodes = fields.map((field) => {
+    const node = buildField(field, store);
+    container.append(node);
+    return { field, node };
   });
-
-  return function sync(state) {
+  return (state) => {
     for (const { field, node } of nodes) {
       node.hidden = Boolean(field.showIf && !field.showIf(state));
       node._sync?.();
     }
   };
+}
+
+/** Panneau repliable contenant une liste de réglages. */
+export function buildSection(container, store, section, index) {
+  const box = el('section', 'group');
+  box.dataset.section = section.id;
+
+  const header = el('button', 'group__head');
+  header.type = 'button';
+  header.setAttribute('aria-expanded', 'true');
+  if (index != null) header.append(el('span', 'group__index', String(index)));
+  header.append(el('span', 'group__title', section.title), el('span', 'group__chevron'));
+
+  const body = el('div', 'group__body');
+  if (section.hint) body.append(el('p', 'group__hint', section.hint));
+  const fields = el('div', 'fields');
+  body.append(fields);
+
+  header.addEventListener('click', () => {
+    const closed = box.classList.toggle('is-closed');
+    header.setAttribute('aria-expanded', String(!closed));
+  });
+
+  box.append(header, body);
+  container.append(box);
+  return buildFields(fields, store, section.fields);
+}
+
+/** Construit le panneau latéral et renvoie une synchronisation unique. */
+export function buildPanel(container, store, sections, firstIndex = 2) {
+  const syncs = sections.map((section, i) => buildSection(container, store, section, firstIndex + i));
+  return (state) => syncs.forEach((sync) => sync(state));
 }
 
 /** Galerie des motifs fournis. */
@@ -143,6 +175,86 @@ export function buildPresetGallery(container, onPick) {
     button.append(el('span', 'preset__name', preset.name));
     button.addEventListener('click', () => onPick(preset));
     container.append(button);
+  }
+}
+
+/* ------------------------------------------------------------- versions */
+
+const relative = new Intl.RelativeTimeFormat('fr', { numeric: 'auto' });
+const UNITS = [
+  ['year', 31536000000], ['month', 2592000000], ['day', 86400000],
+  ['hour', 3600000], ['minute', 60000],
+];
+
+function timeAgo(ts) {
+  const diff = ts - Date.now();
+  for (const [unit, ms] of UNITS) {
+    if (Math.abs(diff) >= ms) return relative.format(Math.round(diff / ms), unit);
+  }
+  return "à l'instant";
+}
+
+let thumbUrls = [];
+
+/**
+ * Affiche la bibliothèque. Les URL d'objet des vignettes sont révoquées à
+ * chaque rendu : sans cela, parcourir la liste ferait fuir de la mémoire.
+ */
+export function renderVersions(container, { versions, currentId, dirty }, handlers) {
+  for (const url of thumbUrls) URL.revokeObjectURL(url);
+  thumbUrls = [];
+  container.textContent = '';
+
+  if (!versions.length) {
+    container.append(el('p', 'versions__empty',
+      'Aucune version enregistrée. Mettez un disque au point, puis gardez-le ici pour y revenir ou le comparer.'));
+    return;
+  }
+
+  for (const version of versions) {
+    const card = el('article', 'version');
+    const isCurrent = version.id === currentId;
+    if (isCurrent) card.classList.add('is-current');
+
+    if (version.thumb) {
+      const url = URL.createObjectURL(version.thumb);
+      thumbUrls.push(url);
+      const img = el('img', 'version__thumb');
+      img.src = url;
+      img.alt = '';
+      img.loading = 'lazy';
+      card.append(img);
+    } else {
+      card.append(el('div', 'version__thumb version__thumb--empty'));
+    }
+
+    const body = el('div', 'version__body');
+    const name = el('h3', 'version__name', version.name);
+    const meta = el('p', 'version__meta',
+      `${Math.round(version.state.diameter)} mm · ${timeAgo(version.updatedAt)}`);
+    body.append(name, meta);
+    if (isCurrent) {
+      body.append(el('span', `badge ${dirty ? 'badge--dirty' : 'badge--current'}`,
+        dirty ? 'modifiée' : 'affichée'));
+    }
+
+    const actions = el('div', 'version__actions');
+    const add = (label, act, className = 'linklike') => {
+      const button = el('button', className, label);
+      button.type = 'button';
+      button.dataset.act = act;
+      button.addEventListener('click', () => handlers[act](version));
+      actions.append(button);
+      return button;
+    };
+    if (!isCurrent) add('Ouvrir', 'load', 'btn btn--small');
+    if (isCurrent && dirty) add('Mettre à jour', 'update', 'btn btn--small btn--primary');
+    add('Renommer', 'rename');
+    add('Supprimer', 'remove');
+
+    body.append(actions);
+    card.append(body);
+    container.append(card);
   }
 }
 

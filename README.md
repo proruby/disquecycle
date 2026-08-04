@@ -91,6 +91,35 @@ de même étendue : **une unité utilisateur vaut un millimètre**. Inkscape,
 Illustrator, Silhouette Studio, Cricut Design Space et les logiciels de laser
 ouvrent donc le fichier à l'échelle, sans redimensionnement manuel.
 
+### Organisation de l'écran
+
+Les réglages sont rangés selon l'endroit où l'on en a besoin, et non selon leur
+parenté technique :
+
+* **à gauche**, ce que l'on compose — visuel, noir et blanc, support, texte ;
+* **sous l'aperçu**, le cadrage (zoom, position, rotation, miroir), parce qu'on
+  l'ajuste en regardant. Chaque curseur est encadré de deux boutons pas à pas,
+  le motif se déplace à la souris dans l'aperçu, et les flèches du clavier
+  donnent le réglage fin quand l'aperçu est sélectionné ;
+* **à droite**, ce qui part à la machine et ce que l'on conserve : la
+  préparation à la découpe, isolée dans son propre bloc, et la bibliothèque de
+  versions.
+
+### Versions enregistrées
+
+Un disque au point peut être conservé : nom, vignette, réglages et visuel
+importé. La colonne de droite les liste du plus récent au plus ancien et permet
+d'ouvrir, mettre à jour, renommer ou supprimer. La version affichée est signalée,
+et marquée « modifiée » dès qu'elle diverge de ce qui est enregistré.
+
+Le stockage s'appuie **directement sur IndexedDB**, sans bibliothèque. C'est déjà
+le magasin qu'enveloppent les paquets habituels du genre, et c'est le seul qui
+accepte les images telles quelles : une version conserve le visuel importé sous
+forme de `Blob`, ce que `localStorage` — limité à quelques mégaoctets de texte —
+ne permettrait pas. Les données restent sur le poste et survivent au
+rechargement. Si le stockage est refusé, en navigation privée par exemple, le
+bloc l'annonce et l'édition continue normalement.
+
 ### Deux lectures du même dessin
 
 * **Vue de nuit** — simulation de la matière rétro-réfléchissante prise dans un
@@ -113,6 +142,7 @@ src/
   state.js          réglages par défaut et persistance locale
   controls.js       description déclarative du panneau de réglages
   ui.js             construction du panneau et des composants
+  library.js        bibliothèque de versions (IndexedDB)
   sources.js        import de fichiers, nettoyage des SVG, motifs
   presets.js        motifs fournis
   pipeline.js       chaîne de traitement complète

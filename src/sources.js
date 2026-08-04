@@ -166,6 +166,25 @@ export async function sourceFromFile(file) {
   return { kind: isSvg ? 'svg' : 'image', name: file.name, canvas, bbox };
 }
 
+/**
+ * Reconstitue une source à partir d'une image enregistrée. Le visuel a déjà
+ * traversé le nettoyage et la rasterisation au moment de l'import : on le
+ * retrouve ici tel que la chaîne de traitement l'utilisait.
+ */
+export async function sourceFromBlob(blob, name, kind = 'image', bbox = null) {
+  const bitmap = await createImageBitmap(blob);
+  const canvas = canvasFrom(bitmap.width, bitmap.height, (ctx) => {
+    ctx.drawImage(bitmap, 0, 0);
+  });
+  bitmap.close?.();
+  return { kind, name, canvas, bbox: bbox || inkBBox(canvas) };
+}
+
+/** Image d'une source, pour l'enregistrer dans la bibliothèque de versions. */
+export function sourceToBlob(source) {
+  return new Promise((resolve) => source.canvas.toBlob(resolve, 'image/png'));
+}
+
 /** Transforme un motif fourni en source exploitable. */
 export function sourceFromPreset(preset) {
   const canvas = canvasFrom(PRESET_SIZE, PRESET_SIZE, (ctx) => {

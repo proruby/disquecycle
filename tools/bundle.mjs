@@ -30,7 +30,7 @@ const EXPORT_RE = /^export\s+(?:async\s+)?(?:function|const|let|class)\s+([A-Za-
 const ORDER = [
   'geometry.js', 'raster.js', 'trace.js', 'shapes.js', 'presets.js',
   'pipeline.js', 'sources.js', 'render.js', 'exportSvg.js', 'state.js',
-  'controls.js', 'ui.js', 'main.js',
+  'library.js', 'controls.js', 'ui.js', 'main.js',
 ];
 
 function readModule(name) {
