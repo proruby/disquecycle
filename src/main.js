@@ -163,7 +163,10 @@ function bindCanvasGestures() {
   let dragging = null;
 
   dom.canvas.addEventListener('pointerdown', (e) => {
-    if (!source) return;
+    // Au doigt, l'aperçu occupe une grande partie de l'écran : capturer le
+    // geste empêcherait de faire défiler la page. Le déplacement direct reste
+    // à la souris et au stylet, les curseurs prennent le relais sur mobile.
+    if (!source || e.pointerType === 'touch') return;
     dragging = {
       id: e.pointerId,
       x: e.clientX,
@@ -192,13 +195,9 @@ function bindCanvasGestures() {
   dom.canvas.addEventListener('pointerup', stop);
   dom.canvas.addEventListener('pointercancel', stop);
 
-  dom.canvas.addEventListener('wheel', (e) => {
-    if (!source) return;
-    e.preventDefault();
-    const factor = Math.exp(-e.deltaY * 0.0015);
-    const zoom = Math.max(10, Math.min(400, Math.round(store.get('zoom') * factor)));
-    store.set('zoom', zoom);
-  }, { passive: false });
+  // La molette n'est délibérément pas interceptée : au-dessus d'un grand
+  // aperçu, détourner le défilement empêche de parcourir la page. Le zoom
+  // reste au curseur, où il est réglable au pas près.
 }
 
 function bindDropzone() {

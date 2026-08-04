@@ -206,6 +206,33 @@ async function main() {
     await page.waitForTimeout(600);
     check('le texte se répercute sur l’aperçu', errors.length === 0, errors[0] || '');
 
+    // La molette au-dessus de l'aperçu doit faire défiler la page, pas zoomer.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const zoomAvant = await page.inputValue('#f-zoom');
+    const box = await page.locator('#preview').boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.wheel(0, 500);
+    await page.waitForTimeout(400);
+    check('la molette ne modifie pas le zoom',
+      (await page.inputValue('#f-zoom')) === zoomAvant, `zoom ${zoomAvant} %`);
+    check('la molette fait défiler la page',
+      (await page.evaluate(() => window.scrollY)) > 0);
+    check('l’aperçu ne capture pas le défilement tactile',
+      (await page.evaluate(() => getComputedStyle(document.getElementById('preview')).touchAction)) !== 'none');
+
+    // …mais le déplacement direct à la souris doit rester intact.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const decalageAvant = await page.inputValue('#f-offsetX');
+    const zone = await page.locator('#preview').boundingBox();
+    await page.mouse.move(zone.x + zone.width / 2, zone.y + zone.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(zone.x + zone.width / 2 + 60, zone.y + zone.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(400);
+    check('le glisser à la souris déplace toujours le visuel',
+      (await page.inputValue('#f-offsetX')) !== decalageAvant,
+      `${decalageAvant} % → ${await page.inputValue('#f-offsetX')} %`);
+
     const download = page.waitForEvent('download', { timeout: 8000 });
     await page.click('#btn-svg-cut');
     const file = await download;

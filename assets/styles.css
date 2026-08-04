@@ -370,7 +370,6 @@ button { font: inherit; color: inherit; }
   aspect-ratio: 1 / 1;
   max-height: calc(100vh - 300px);
   margin: 0 auto;
-  touch-action: none;
   cursor: grab;
 }
 #preview.is-dragging { cursor: grabbing; }

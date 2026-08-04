@@ -13,7 +13,7 @@ export const SECTIONS = [
   {
     id: 'framing',
     title: 'Cadrage',
-    hint: "Placez le visuel dans la zone utile. Vous pouvez aussi le déplacer à la souris et zoomer à la molette directement sur l'aperçu.",
+    hint: "Placez le visuel dans la zone utile. Vous pouvez aussi le déplacer directement à la souris sur l'aperçu.",
     fields: [
       {
         key: 'fit', type: 'select', label: 'Mise à l’échelle',
