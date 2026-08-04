@@ -593,12 +593,17 @@ button { font: inherit; color: inherit; }
 .help__foot { margin-top: 22px; color: var(--text-faint); font-size: 12.5px; }
 
 .footer {
-  max-width: 1560px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 1720px;
   margin: 0 auto;
   padding: 28px;
   color: var(--text-faint);
   font-size: 12.5px;
 }
+.footer a { color: var(--text-dim); }
+.footer a:hover { color: var(--accent-dim); }
 
 /* ------------------------------------------------------------ adaptatif */
 

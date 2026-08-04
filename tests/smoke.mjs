@@ -136,6 +136,31 @@ async function main() {
       check(`forme « ${shape} » vectorisée`, res.outlineLength > 0 && res.designLength > 0);
     }
 
+    // Chaque motif proposé doit produire une découpe réelle, quelle que soit sa
+    // boîte de coordonnées et sa règle de remplissage.
+    const motifs = await page.evaluate(async () => {
+      const [{ buildModel }, { DEFAULTS }, { sourceFromPreset }, { PRESETS }] = await Promise.all([
+        import('/src/pipeline.js'), import('/src/state.js'),
+        import('/src/sources.js'), import('/src/presets.js'),
+      ]);
+      return PRESETS.map((preset) => {
+        const model = buildModel({ ...DEFAULTS, quality: 640 }, sourceFromPreset(preset));
+        return { id: preset.id, paths: model.stats.designPaths, area: Math.round(model.stats.areaMm2) };
+      });
+    });
+    const muets = motifs.filter((m) => m.paths === 0 || m.area < 200);
+    check('tous les motifs proposés se vectorisent', muets.length === 0,
+      muets.length ? muets.map((m) => m.id).join(', ') : `${motifs.length} motifs`);
+    check('la palette compte les emprunts', motifs.length >= 20, `${motifs.length} motifs`);
+
+    const boites = await page.evaluate(() => ({
+      maison: document.querySelector('.preset[data-preset="bike"] svg').getAttribute('viewBox'),
+      emprunt: document.querySelector('.preset[data-preset="ghost"] svg').getAttribute('viewBox'),
+    }));
+    check('chaque motif garde ses coordonnées d’origine',
+      boites.maison === '0 0 100 100' && boites.emprunt === '0 0 24 24',
+      `${boites.maison} / ${boites.emprunt}`);
+
     const textOnly = await runPipeline(page, { text: 'VÉLO', textPlace: 'arcTop' }, null);
     check('le texte seul est vectorisé', textOnly.stats.designPaths >= 4,
       `${textOnly.stats.designPaths} tracés`);

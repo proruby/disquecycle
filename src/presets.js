@@ -1,12 +1,18 @@
 /**
- * Motifs fournis avec l'application, dessinés dans une boîte de 100 × 100.
+ * Motifs fournis avec l'application.
  *
- * Chaque motif est une liste d'éléments : soit une surface pleine (`fill`,
- * règle pair-impair pour obtenir des trous), soit un trait d'épaisseur donnée.
- * Le même descripteur alimente les vignettes SVG de l'interface et le rendu
- * dans la grille de travail — un motif se comporte donc exactement comme une
- * image importée.
+ * Chaque motif est une liste d'éléments : soit une surface pleine, soit un
+ * trait d'épaisseur donnée. Le même descripteur alimente les vignettes SVG de
+ * l'interface et le rendu dans la grille de travail — un motif se comporte donc
+ * exactement comme une image importée.
+ *
+ * `box` donne le côté du carré dans lequel le motif est exprimé (100 pour les
+ * dessins maison), et `rule` la règle de remplissage. Les motifs empruntés
+ * gardent ainsi leurs coordonnées et leur règle d'origine, sans réécriture qui
+ * risquerait d'altérer le tracé.
  */
+
+import { TABLER_PRESETS } from './presets-tabler.js';
 
 const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -46,7 +52,7 @@ function rays(cx, cy, r0, r1, count) {
   return d;
 }
 
-export const PRESETS = [
+const HOUSE_PRESETS = [
   {
     id: 'bike',
     name: 'Vélo',
@@ -128,9 +134,16 @@ export const PRESETS = [
   },
 ];
 
+/** Tous les motifs proposés : les dessins maison, puis les emprunts. */
+export const PRESETS = [...HOUSE_PRESETS, ...TABLER_PRESETS];
+
+const boxOf = (preset) => preset.box || 100;
+const ruleOf = (preset) => preset.rule || 'evenodd';
+
 /** Dessine un motif dans un contexte 2D, mis à l'échelle sur `size` pixels. */
 export function drawPreset(ctx, preset, size) {
-  const s = size / 100;
+  const s = size / boxOf(preset);
+  const rule = ruleOf(preset);
   ctx.save();
   ctx.scale(s, s);
   ctx.fillStyle = '#000';
@@ -143,7 +156,7 @@ export function drawPreset(ctx, preset, size) {
       ctx.lineWidth = item.stroke;
       ctx.stroke(p);
     } else {
-      ctx.fill(p, 'evenodd');
+      ctx.fill(p, rule);
     }
   }
   ctx.restore();
@@ -151,10 +164,12 @@ export function drawPreset(ctx, preset, size) {
 
 /** Balisage SVG d'un motif, utilisé pour les vignettes de la palette. */
 export function presetMarkup(preset) {
+  const box = boxOf(preset);
+  const rule = ruleOf(preset);
   const parts = preset.items.map((item) => (
     item.stroke
       ? `<path d="${item.d}" fill="none" stroke="currentColor" stroke-width="${item.stroke}" stroke-linejoin="round" stroke-linecap="round"/>`
-      : `<path d="${item.d}" fill="currentColor" fill-rule="evenodd"/>`
+      : `<path d="${item.d}" fill="currentColor" fill-rule="${rule}"/>`
   ));
-  return `<svg viewBox="0 0 100 100" aria-hidden="true">${parts.join('')}</svg>`;
+  return `<svg viewBox="0 0 ${box} ${box}" aria-hidden="true">${parts.join('')}</svg>`;
 }

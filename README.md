@@ -145,6 +145,7 @@ src/
   library.js        bibliothèque de versions (IndexedDB)
   sources.js        import de fichiers, nettoyage des SVG, motifs
   presets.js        motifs fournis
+  presets-tabler.js motifs empruntés (engendré, versionné)
   pipeline.js       chaîne de traitement complète
   raster.js         niveaux, flou, seuillage, carte de distance
   trace.js          vectorisation par suivi de contours
@@ -154,6 +155,7 @@ src/
   exportSvg.js      génération des fichiers SVG
 serve.js            serveur statique sans dépendance
 tools/bundle.mjs    assemblage en un fichier HTML autonome
+tools/import-tabler.mjs  ré-import des motifs empruntés
 tests/smoke.mjs     test de bout en bout dans un vrai navigateur
 tests/bundle.mjs    test du fichier autonome, ouvert en file://
 ```
@@ -195,6 +197,35 @@ localement ; l'application elle-même n'a aucune dépendance.
 
 Un motif réfléchissant complète l'éclairage réglementaire, il ne le remplace pas.
 
+## Motifs fournis
+
+Vingt motifs sont proposés pour démarrer sans rien importer.
+
+Dix sont dessinés pour ce projet (vélo, flèche, éclair, étoile, cœur, montagne,
+patte, attention, soleil, cible). Les dix autres — fantôme, alien, soucoupe,
+champignon, pizza, papillon, bonhomme, couronne, montgolfière, araignée —
+proviennent de [Tabler Icons](https://tabler.io/icons), sous **licence MIT**,
+© 2020-2026 Paweł Kuna.
+
+Ce sont les variantes *pleines* qui ont été retenues : sur un disque
+réfléchissant, une silhouette renvoie beaucoup plus de lumière qu'un contour, et
+elle se découpe sans traits fins.
+
+Les données de chemin sont recopiées telles quelles, dans leur boîte de 24 × 24
+et avec leur règle de remplissage d'origine — le tracé reste l'œuvre de son
+auteur, aucune réécriture ne risque de l'altérer. La licence complète est
+reproduite en tête de `src/presets-tabler.js`, donc dans toute copie distribuée,
+fichier autonome compris.
+
+```bash
+npm run icons      # ré-importe la sélection depuis le paquet officiel
+```
+
+Le fichier engendré est versionné : l'application n'a toujours aucune
+dépendance, et ce script ne sert qu'à rafraîchir ou compléter la sélection —
+la liste des icônes retenues tient en tête de `tools/import-tabler.mjs`.
+
 ## Licence
 
-MIT.
+MIT pour ce projet. Les motifs empruntés à Tabler Icons sont sous leur propre
+licence MIT, reproduite dans `src/presets-tabler.js`.

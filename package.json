@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node serve.js",
     "build": "node tools/bundle.mjs",
+    "icons": "node tools/import-tabler.mjs",
     "test": "node tests/smoke.mjs && node tests/bundle.mjs"
   },
   "keywords": [
