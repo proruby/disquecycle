@@ -1,0 +1,12 @@
+{
+  "name": "reflecto",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Studio de personnalisation de disques réfléchissants à découper pour cyclistes",
+  "scripts": {
+    "start": "node serve.js",
+    "test": "node tests/smoke.mjs"
+  },
+  "keywords": ["svg", "découpe", "réfléchissant", "vélo", "vectorisation"],
+  "license": "MIT"
+}

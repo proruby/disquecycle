@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Réflecto — studio de disques réfléchissants</title>
+<meta name="description" content="Créez un disque réfléchissant personnalisé en noir et blanc, prêt à découper au plotter, à coller sur un gilet ou un sac à dos de cycliste.">
+<meta name="color-scheme" content="dark">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23d8ff3e'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%230b0d10'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+      <circle cx="16" cy="16" r="15" fill="currentColor"/>
+      <circle cx="16" cy="16" r="7" fill="#0b0d10"/>
+    </svg>
+    <div>
+      <h1>Réflecto</h1>
+      <p>Disques réfléchissants à découper, pour gilets et sacs de vélo</p>
+    </div>
+  </div>
+  <p class="topbar__note">Tout se passe dans votre navigateur : aucun fichier n’est envoyé sur un serveur.</p>
+</header>
+
+<main class="layout">
+
+  <aside class="sidebar">
+    <section class="group group--source">
+      <div class="group__head group__head--static">
+        <span class="group__index">0</span><span class="group__title">Visuel</span>
+      </div>
+      <div class="group__body">
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Importer un visuel">
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="dropzone__icon">
+            <path d="M12 16V4m0 0L7 9m5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <div class="dropzone__text">
+            <strong>Déposez un fichier</strong>
+            <span>SVG, PNG, JPEG ou WebP — ou cliquez pour parcourir</span>
+          </div>
+          <div class="dropzone__current">
+            <span id="source-name">Aucun visuel</span>
+            <button type="button" id="clear-source" class="linklike" hidden>retirer</button>
+          </div>
+          <input type="file" id="file" accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp" hidden>
+        </div>
+        <p class="flash" id="flash" hidden></p>
+        <p class="group__hint">…ou partez d’un motif&nbsp;:</p>
+        <div class="presets" id="presets"></div>
+      </div>
+    </section>
+
+    <div id="panel"></div>
+
+    <button type="button" id="btn-reset" class="btn btn--ghost btn--block">Réinitialiser les réglages</button>
+  </aside>
+
+  <section class="stage">
+    <div class="stage__toolbar">
+      <div class="segmented" role="group" aria-label="Mode d’aperçu">
+        <button type="button" data-mode="night" class="segmented__item">Vue de nuit</button>
+        <button type="button" data-mode="day" class="segmented__item">Vue atelier</button>
+      </div>
+      <label class="checkline">
+        <input type="checkbox" id="show-cuts">
+        <span>Traits de découpe</span>
+      </label>
+      <label class="checkline">
+        <span>Finesse</span>
+        <select id="quality" class="field__select field__select--inline"></select>
+      </label>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="preview" aria-label="Aperçu du disque"></canvas>
+      <div class="busy" id="busy" hidden>calcul…</div>
+    </div>
+
+    <p class="warning" id="warning" hidden></p>
+    <div class="stats" id="stats"></div>
+
+    <div class="actions">
+      <button type="button" id="btn-svg-cut" class="btn btn--primary">SVG de découpe</button>
+      <button type="button" id="btn-svg-preview" class="btn">SVG d’aperçu</button>
+      <button type="button" id="btn-png" class="btn">Image PNG</button>
+    </div>
+  </section>
+
+</main>
+
+<section class="help">
+  <h2>Du fichier au gilet</h2>
+  <div class="help__grid">
+    <article>
+      <h3>1. Le fichier</h3>
+      <p>Le <strong>SVG de découpe</strong> est exprimé en millimètres réels : un contour extérieur, l’anneau, puis le motif, tous en traits fins sans remplissage. C’est ce que lisent Silhouette&nbsp;Studio, Cricut Design Space, Inkscape ou un logiciel de laser. Le <strong>SVG d’aperçu</strong>, rempli en noir, sert à valider le dessin ou à l’imprimer.</p>
+    </article>
+    <article>
+      <h3>2. La matière</h3>
+      <p>Prenez un film adhésif rétro-réfléchissant à découper (classe&nbsp;1 ou&nbsp;2, souvent vendu en rouleaux de 30&nbsp;cm). Pour un textile, choisissez plutôt un film thermocollant réfléchissant, appliqué à la presse ou au fer selon la notice du fabricant.</p>
+    </article>
+    <article>
+      <h3>3. La découpe</h3>
+      <p>Découpez film vers le haut, sans miroir. Le réglage <em>Grossir&nbsp;/ affiner</em> compense le trait de lame&nbsp;; <em>Détail minimal</em> vous alerte quand un trait devient trop fin pour être décollé sans se déchirer. Faites toujours un test sur une chute.</p>
+    </article>
+    <article>
+      <h3>4. La pose</h3>
+      <p>Dégraissez le support, posez à l’aide d’un ruban de transfert, marouflez du centre vers les bords. Sur un sac, un disque de 70 à 90&nbsp;mm est un bon compromis&nbsp;; sur une poche de gilet, restez sous 60&nbsp;mm.</p>
+    </article>
+  </div>
+  <p class="help__foot">Un motif réfléchissant complète l’éclairage réglementaire, il ne le remplace pas.</p>
+</section>
+
+<footer class="footer">
+  <p>Réflecto — traitement d’image, vectorisation et export SVG entièrement côté navigateur.</p>
+</footer>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
