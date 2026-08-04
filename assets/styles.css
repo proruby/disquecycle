@@ -22,7 +22,14 @@
 
 * { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; }
+/* Le fond est porté aussi par la racine : la page reste sur son noir quel que
+   soit le thème de la fenêtre qui l'affiche. L'aperçu de nuit est le mode de
+   lecture principal, il ne survivrait pas à un fond clair. */
+html {
+  -webkit-text-size-adjust: 100%;
+  background: var(--bg);
+  color-scheme: dark;
+}
 
 body {
   margin: 0;

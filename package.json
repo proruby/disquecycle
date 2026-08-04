@@ -5,8 +5,15 @@
   "description": "Studio de personnalisation de disques réfléchissants à découper pour cyclistes",
   "scripts": {
     "start": "node serve.js",
-    "test": "node tests/smoke.mjs"
+    "build": "node tools/bundle.mjs",
+    "test": "node tests/smoke.mjs && node tests/bundle.mjs"
   },
-  "keywords": ["svg", "découpe", "réfléchissant", "vélo", "vectorisation"],
+  "keywords": [
+    "svg",
+    "découpe",
+    "réfléchissant",
+    "vélo",
+    "vectorisation"
+  ],
   "license": "MIT"
 }

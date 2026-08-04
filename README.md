@@ -24,6 +24,35 @@ npm start
 Aucune dépendance à installer, aucune étape de compilation. Le dossier peut être
 déposé tel quel sur n'importe quel hébergement statique (GitHub Pages, Netlify…).
 
+## Publier
+
+### En un seul fichier
+
+```bash
+npm run build      # → dist/reflecto.html
+```
+
+`dist/reflecto.html` contient l'application entière : style, modules et motifs.
+Il s'ouvre par un double-clic depuis le disque, sans serveur ni réseau — pratique
+pour l'emporter dans un atelier ou le joindre à un message. `dist/fragment.html`
+est le même contenu sans l'ossature de page, pour les hébergements qui
+fournissent le squelette.
+
+Les modules ES ne pouvant pas être simplement concaténés — ils partageraient une
+portée unique et plusieurs noms internes se marchent dessus — chaque module est
+enfermé dans sa propre fonction, ses imports devenant des déstructurations de
+l'objet qu'elle renvoie.
+
+### Sur GitHub Pages
+
+Le dépôt contient un workflow prêt à l'emploi : `.github/workflows/pages.yml`.
+Il se déclenche sur la branche par défaut, quel que soit son nom, et publie le
+site accompagné du fichier autonome sous `/reflecto-autonome.html`.
+
+Une seule action manuelle est nécessaire, côté GitHub :
+**Settings → Pages → Source → GitHub Actions**. Le premier push sur la branche
+par défaut publie alors le site sur `https://<compte>.github.io/<dépôt>/`.
+
 ## Ce que fait l'application
 
 ### La chaîne de traitement
@@ -94,7 +123,9 @@ src/
   render.js         rendu de l'aperçu
   exportSvg.js      génération des fichiers SVG
 serve.js            serveur statique sans dépendance
+tools/bundle.mjs    assemblage en un fichier HTML autonome
 tests/smoke.mjs     test de bout en bout dans un vrai navigateur
+tests/bundle.mjs    test du fichier autonome, ouvert en file://
 ```
 
 ## Sécurité des imports
@@ -110,11 +141,14 @@ la page — il est rasterisé dans un `<img>` isolé.
 npm test
 ```
 
-Le test lance le serveur, ouvre l'application dans Chromium via Playwright et
-vérifie la chaîne complète : vectorisation des motifs et du texte, validité
-syntaxique des chemins produits, échelle réelle du SVG, mode négatif, chaque
-forme de support, suppression des miettes, import d'un SVG hostile et d'une
-image matricielle, puis le téléchargement depuis l'interface.
+Le premier test lance le serveur, ouvre l'application dans Chromium via
+Playwright et vérifie la chaîne complète : vectorisation des motifs et du texte,
+validité syntaxique des chemins produits, échelle réelle du SVG, mode négatif,
+chaque forme de support, suppression des miettes, import d'un SVG hostile et
+d'une image matricielle, puis le téléchargement depuis l'interface.
+
+Le second assemble le fichier autonome, l'ouvre en `file://` et vérifie qu'il
+démarre, dessine, n'émet aucune requête réseau et exporte toujours.
 
 Playwright est résolu depuis les modules globaux s'il n'est pas installé
 localement ; l'application elle-même n'a aucune dépendance.

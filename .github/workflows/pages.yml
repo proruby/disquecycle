@@ -1,0 +1,46 @@
+name: Publication GitHub Pages
+
+# Se déclenche depuis la branche par défaut, quel que soit son nom, plutôt que
+# depuis une branche codée en dur : le dépôt peut être renommé ou réorganisé
+# sans casser la publication.
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publier:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Assembler le site
+        run: |
+          node tools/bundle.mjs
+          mkdir -p _site
+          cp index.html _site/
+          cp -r assets src _site/
+          cp dist/reflecto.html _site/reflecto-autonome.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploiement
+        uses: actions/deploy-pages@v4
